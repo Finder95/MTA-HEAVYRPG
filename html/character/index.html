@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HeavyRPG Character Creator</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <main class="creator">
+        <header class="head">
+            <span class="eyebrow">Creator Suite</span>
+            <h1>Nowa postac</h1>
+            <p>Wybierz wyglad i podstawowe dane. Podglad skina widzisz na zywo w miescie.</p>
+        </header>
+
+        <section class="skin-panel">
+            <span class="label">Wybrany skin</span>
+            <div class="skin-row">
+                <button class="icon" id="prevSkin" type="button">‹</button>
+                <div class="skin-id" id="skinId">046</div>
+                <button class="icon" id="nextSkin" type="button">›</button>
+            </div>
+        </section>
+
+        <form id="characterForm" class="form">
+            <label>
+                Imie
+                <input name="firstname" autocomplete="off" maxlength="18" placeholder="np. Adrian" />
+            </label>
+
+            <label>
+                Nazwisko
+                <input name="lastname" autocomplete="off" maxlength="18" placeholder="np. Kowalski" />
+            </label>
+
+            <div id="status" class="status muted">Ustaw kamerę, wybierz skin i zatwierdz postac.</div>
+
+            <button type="submit" class="primary">Rozpocznij gre</button>
+        </form>
+
+        <footer class="foot">
+            <span>Live skin preview</span>
+            <span>HeavyRPG</span>
+        </footer>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
