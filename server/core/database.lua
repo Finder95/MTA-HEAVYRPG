@@ -91,6 +91,11 @@ local schema = {
         rotation REAL NOT NULL DEFAULT 0,
         interior INTEGER NOT NULL DEFAULT 0,
         dimension INTEGER NOT NULL DEFAULT 0,
+        hunger REAL NOT NULL DEFAULT 92,
+        thirst REAL NOT NULL DEFAULT 88,
+        energy REAL NOT NULL DEFAULT 86,
+        hygiene REAL NOT NULL DEFAULT 75,
+        stress REAL NOT NULL DEFAULT 8,
         playtime INTEGER NOT NULL DEFAULT 0,
         last_played_at INTEGER,
         created_at INTEGER NOT NULL,
@@ -99,7 +104,24 @@ local schema = {
     )]],
 
     [[CREATE INDEX IF NOT EXISTS idx_characters_account ON characters(account_id)]],
-    [[CREATE INDEX IF NOT EXISTS idx_characters_account_updated ON characters(account_id, updated_at)]]
+    [[CREATE INDEX IF NOT EXISTS idx_characters_account_updated ON characters(account_id, updated_at)]],
+
+    [[CREATE TABLE IF NOT EXISTS bank_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        character_id INTEGER NOT NULL,
+        account_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        balance_after INTEGER NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        target_character_id INTEGER,
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE CASCADE
+    )]],
+
+    [[CREATE INDEX IF NOT EXISTS idx_bank_transactions_character ON bank_transactions(character_id, created_at)]],
+    [[CREATE INDEX IF NOT EXISTS idx_bank_transactions_account ON bank_transactions(account_id, created_at)]]
 }
 
 local migrations = {
@@ -113,6 +135,11 @@ local migrations = {
     { column = "charisma", sql = [[ALTER TABLE characters ADD COLUMN charisma INTEGER NOT NULL DEFAULT 4]] },
     { column = "focus", sql = [[ALTER TABLE characters ADD COLUMN focus INTEGER NOT NULL DEFAULT 4]] },
     { column = "stat_points", sql = [[ALTER TABLE characters ADD COLUMN stat_points INTEGER NOT NULL DEFAULT 24]] },
+    { column = "hunger", sql = [[ALTER TABLE characters ADD COLUMN hunger REAL NOT NULL DEFAULT 92]] },
+    { column = "thirst", sql = [[ALTER TABLE characters ADD COLUMN thirst REAL NOT NULL DEFAULT 88]] },
+    { column = "energy", sql = [[ALTER TABLE characters ADD COLUMN energy REAL NOT NULL DEFAULT 86]] },
+    { column = "hygiene", sql = [[ALTER TABLE characters ADD COLUMN hygiene REAL NOT NULL DEFAULT 75]] },
+    { column = "stress", sql = [[ALTER TABLE characters ADD COLUMN stress REAL NOT NULL DEFAULT 8]] },
     { column = "playtime", sql = [[ALTER TABLE characters ADD COLUMN playtime INTEGER NOT NULL DEFAULT 0]] },
     { column = "last_played_at", sql = [[ALTER TABLE characters ADD COLUMN last_played_at INTEGER]] }
 }
