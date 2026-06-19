@@ -12,8 +12,8 @@ local function decodePayload(jsonPayload)
 end
 
 function Auth.ready()
-    local token = HRP.LocalStorage.getSessionToken()
-    triggerServerEvent("HeavyRPG:Auth:clientReady", resourceRoot, token or false)
+    HRP.LocalStorage.clearSessionToken()
+    triggerServerEvent("HeavyRPG:Auth:clientReady", resourceRoot, false)
 end
 
 function Auth.show(payload)
@@ -52,14 +52,7 @@ addEvent("HeavyRPG:Auth:response", true)
 addEventHandler("HeavyRPG:Auth:response", resourceRoot, function(action, ok, response)
     response = response or {}
 
-    if ok and response.payload then
-        local token = response.payload.rememberToken
-        if type(token) == "string" and #token > 0 then
-            HRP.LocalStorage.setSessionToken(token)
-        end
-    end
-
-    if ok and (action == "login" or action == "register" or action == "resume") then
+    if ok and (action == "login" or action == "register") then
         Auth.hide()
     end
 
