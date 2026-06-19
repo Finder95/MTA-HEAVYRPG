@@ -198,23 +198,20 @@ end)
 addEvent("HeavyRPG:Bank:sync", true)
 addEventHandler("HeavyRPG:Bank:sync", resourceRoot, function(payload)
     payload = type(payload) == "table" and payload or {}
-    HUD.money.cash = money(payload.cash) and tonumber(payload.cash) or getPlayerMoney(localPlayer)
+    HUD.money.cash = tonumber(payload.cash) or getPlayerMoney(localPlayer)
     HUD.money.bank = tonumber(payload.bank) or HUD.money.bank or 0
     HUD.lastSync = getTickCount()
     setVisible(true)
 end)
 
-addEvent("HeavyRPG:Auth:show", true)
 addEventHandler("HeavyRPG:Auth:show", resourceRoot, function()
     setVisible(false)
 end)
 
-addEvent("HeavyRPG:Character:showCreator", true)
 addEventHandler("HeavyRPG:Character:showCreator", resourceRoot, function()
     setVisible(false)
 end)
 
-addEvent("HeavyRPG:Character:hideCreator", true)
 addEventHandler("HeavyRPG:Character:hideCreator", resourceRoot, function()
     hideDefaultComponents()
 end)
