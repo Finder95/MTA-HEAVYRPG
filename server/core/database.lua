@@ -89,12 +89,6 @@ local schema = {
     [[CREATE INDEX IF NOT EXISTS idx_characters_account ON characters(account_id)]]
 }
 
-local function applyPragma(sql)
-    dbQuery(function(qh)
-        dbPoll(qh, 0)
-    end, HRP.DB.connection, sql)
-end
-
 function HRP.DB.connect()
     if HRP.DB.connection and isElement(HRP.DB.connection) then
         return true
@@ -108,9 +102,6 @@ function HRP.DB.connect()
         HRP.Logger.error("database", "Nie udalo sie polaczyc z SQLite: " .. tostring(cfg.path))
         return false
     end
-
-    applyPragma("PRAGMA foreign_keys = ON")
-    applyPragma("PRAGMA journal_mode = WAL")
 
     for _, sql in ipairs(schema) do
         if not dbExec(HRP.DB.connection, sql) then
@@ -147,8 +138,14 @@ function HRP.DB.query(sql, params, callback)
     params = params or {}
     return dbQuery(function(qh)
         local result, affectedRows, lastInsertId = dbPoll(qh, 0)
+        if result == false then
+            HRP.Logger.error("database", "Blad SQL: " .. tostring(lastInsertId or affectedRows or "unknown") .. " | " .. tostring(sql))
+            if callback then callback(false, 0, 0) end
+            return
+        end
+
         if callback then
-            callback(result or {}, affectedRows or 0, lastInsertId or 0)
+            callback(result or {}, tonumber(affectedRows) or 0, tonumber(lastInsertId) or 0)
         end
     end, HRP.DB.connection, sql, unpack(params))
 end
