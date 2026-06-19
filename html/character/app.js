@@ -31,6 +31,7 @@
         busy: false,
         view: 'create',
         characters: [],
+        slotsUsed: 0,
         maxSlots: 3,
         skins: fallbackSkins.slice(0),
         selectedIndex: 0,
@@ -128,6 +129,21 @@
         return out.length ? out : (fallback || []);
     }
 
+    function normalizeCharacters(value) {
+        var raw = normalizeList(value, []);
+        var out = [];
+        for (var i = 0; i < raw.length; i += 1) {
+            var character = unwrapMtaJson(raw[i]);
+            if (!character || typeof character !== 'object') continue;
+            var id = Number(character.id);
+            if (!isFiniteNumber(id) || id <= 0) continue;
+            character.id = id;
+            character.skin = Number(character.skin) || 0;
+            out.push(character);
+        }
+        return out;
+    }
+
     function normalizeSkins(value, fallback) {
         var list = normalizeList(value, fallbackSkins).map(function (skin) { return Number(skin); }).filter(function (skin) {
             return isFiniteNumber(skin) && skin >= 0;
@@ -171,7 +187,7 @@
     }
 
     function renderControls() {
-        var full = state.characters.length >= state.maxSlots;
+        var full = state.slotsUsed >= state.maxSlots;
         tabCreate.disabled = state.busy || full;
         newCharacter.disabled = state.busy || full;
     }
@@ -273,7 +289,7 @@
 
     function renderSlots() {
         characterSlots.innerHTML = '';
-        slotCount.textContent = state.characters.length + '/' + state.maxSlots + ' sloty';
+        slotCount.textContent = Math.min(state.slotsUsed, state.maxSlots) + '/' + state.maxSlots + ' sloty';
         if (!state.characters.length) {
             var empty = document.createElement('div');
             empty.className = 'empty-slot';
@@ -296,11 +312,11 @@
                 characterSlots.appendChild(card);
             }(state.characters[i]));
         }
-        if (state.maxSlots - state.characters.length > 0) {
+        if (state.maxSlots - state.slotsUsed > 0) {
             var add = document.createElement('button');
             add.className = 'slot-card add';
             add.type = 'button';
-            add.innerHTML = '<strong>+ Nowa postac</strong><small>Wolne sloty: ' + (state.maxSlots - state.characters.length) + '</small>';
+            add.innerHTML = '<strong>+ Nowa postac</strong><small>Wolne sloty: ' + (state.maxSlots - state.slotsUsed) + '</small>';
             add.onclick = function () { setView('create'); };
             characterSlots.appendChild(add);
         }
@@ -367,8 +383,11 @@
             if (packet && typeof packet === 'object') { name = packet.name; detail = unwrapMtaJson(packet.detail || {}); }
             if (!name) return;
             if (name === 'creator:show') {
-                state.characters = normalizeList(detail.characters, []);
+                state.characters = normalizeCharacters(detail.characters);
                 state.maxSlots = Number(detail.maxSlots) || 3;
+                state.slotsUsed = Number(detail.slotsUsed);
+                if (!isFiniteNumber(state.slotsUsed)) state.slotsUsed = state.characters.length;
+                if (state.slotsUsed < state.characters.length) state.slotsUsed = state.characters.length;
                 state.skins = normalizeSkins(detail.skins, detail.defaultSkin);
                 state.genders = normalizeList(detail.genders, state.genders);
                 state.age = detail.age || state.age;
