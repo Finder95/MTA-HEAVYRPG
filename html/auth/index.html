@@ -49,7 +49,7 @@
 
             <form class="form active" id="loginForm">
                 <label>
-                    Login lub e-mail
+                    Login
                     <input name="identifier" autocomplete="username" placeholder="np. HeavyPlayer" />
                 </label>
 
@@ -67,36 +67,20 @@
             </form>
 
             <form class="form" id="registerForm">
-                <div class="row">
-                    <label>
-                        Login
-                        <input name="username" autocomplete="username" placeholder="3-24 znaki" />
-                    </label>
-                    <label>
-                        E-mail
-                        <input name="email" type="email" autocomplete="email" placeholder="mail@example.com" />
-                    </label>
-                </div>
+                <label>
+                    Login
+                    <input name="username" autocomplete="username" placeholder="3-24 znaki" />
+                </label>
 
                 <label>
                     Haslo
                     <input name="password" type="password" autocomplete="new-password" placeholder="Minimum 8 znakow" />
                 </label>
 
-                <label>
-                    Powtorz haslo
-                    <input name="passwordRepeat" type="password" autocomplete="new-password" placeholder="Powtorz haslo" />
-                </label>
-
                 <div class="password-meter">
                     <div id="meterBar"></div>
                 </div>
-                <small id="passwordHint">Uzyj liter/cyfr lub znakow specjalnych.</small>
-
-                <label class="check">
-                    <input name="rules" type="checkbox" />
-                    <span>Akceptuje regulamin HeavyRPG</span>
-                </label>
+                <small id="passwordHint">Haslo musi miec minimum 8 znakow.</small>
 
                 <label class="check">
                     <input name="remember" type="checkbox" checked />
