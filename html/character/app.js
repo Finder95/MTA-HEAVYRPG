@@ -1,5 +1,18 @@
 (function () {
     var fallbackSkins = [46, 47, 48, 60, 98, 101, 170, 171, 180, 184, 185, 186, 187, 188, 227, 240, 250, 261];
+    var fallbackOrigins = [
+        { id: 'ls_native', label: 'Los Santos', description: 'Znasz ulice, kontakty i lokalne uklady.' },
+        { id: 'red_county', label: 'Red County', description: 'Spokojniejsze zaplecze i praktyczne umiejetnosci.' },
+        { id: 'sf_transfer', label: 'San Fierro', description: 'Nowy start po przeprowadzce.' },
+        { id: 'lv_runner', label: 'Las Venturas', description: 'Ryzyko, szybkie decyzje i obycie z biznesem.' }
+    ];
+    var fallbackArchetypes = [
+        { id: 'hustler', label: 'Uliczny gracz', bonus: 'Lepszy start w kontaktach i drobnych interesach.' },
+        { id: 'worker', label: 'Pracownik', bonus: 'Stabilniejszy progres prac legalnych.' },
+        { id: 'driver', label: 'Kierowca', bonus: 'Naturalny kierunek pod transport i auta.' },
+        { id: 'fixer', label: 'Fixer', bonus: 'Charyzma, uklady i ekonomia graczy.' },
+        { id: 'athlete', label: 'Atleta', bonus: 'Fizyczna przewaga pod akcje i poscigi.' }
+    ];
     var fallbackStats = {
         points: 24,
         min: 1,
@@ -16,10 +29,9 @@
 
     var state = {
         busy: false,
-        view: 'slots',
+        view: 'create',
         characters: [],
         maxSlots: 3,
-        canCreate: true,
         skins: fallbackSkins.slice(0),
         selectedIndex: 0,
         selectedSkin: 46,
@@ -29,8 +41,8 @@
             { id: 'other', label: 'Inna' }
         ],
         age: { min: 18, max: 65, default: 24 },
-        origins: [],
-        archetypes: [],
+        origins: fallbackOrigins.slice(0),
+        archetypes: fallbackArchetypes.slice(0),
         statsConfig: fallbackStats,
         stats: {},
         responseTimer: null
@@ -44,6 +56,9 @@
         if (isArray(value) && value.length === 1 && value[0] && typeof value[0] === 'object') return value[0];
         return value;
     }
+    function addClass(el, name) { if (el && el.classList) el.classList.add(name); }
+    function removeClass(el, name) { if (el && el.classList) el.classList.remove(name); }
+    function setActive(el, active) { if (active) addClass(el, 'active'); else removeClass(el, 'active'); }
 
     var panelTitle = $('#panelTitle');
     var panelLead = $('#panelLead');
@@ -90,7 +105,7 @@
         clearResponseTimer();
         state.responseTimer = setTimeout(function () {
             setBusy(false);
-            setStatus('Serwer nie odpowiedzial. Sprobuj ponownie albo sprawdz konsole serwera.', 'error');
+            setStatus('Serwer nie odpowiedzial. Sprawdz konsole server/client, ale panel wyslal event.', 'error');
         }, 15000);
     }
 
@@ -104,12 +119,13 @@
     }
 
     function normalizeList(value, fallback) {
+        var out = [];
         value = unwrapMtaJson(value);
-        if (isArray(value)) return value;
-        if (value && typeof value === 'object') {
-            return Object.keys(value).sort(function (a, b) { return Number(a) - Number(b); }).map(function (key) { return value[key]; });
+        if (isArray(value)) out = value;
+        else if (value && typeof value === 'object') {
+            Object.keys(value).sort(function (a, b) { return Number(a) - Number(b); }).forEach(function (key) { out.push(value[key]); });
         }
-        return fallback || [];
+        return out.length ? out : (fallback || []);
     }
 
     function normalizeSkins(value, fallback) {
@@ -143,10 +159,10 @@
 
     function setView(view) {
         state.view = view;
-        tabSlots.classList.toggle('active', view === 'slots');
-        tabCreate.classList.toggle('active', view === 'create');
-        slotsView.classList.toggle('active', view === 'slots');
-        createView.classList.toggle('active', view === 'create');
+        setActive(tabSlots, view === 'slots');
+        setActive(tabCreate, view === 'create');
+        setActive(slotsView, view === 'slots');
+        setActive(createView, view === 'create');
         panelTitle.textContent = view === 'slots' ? 'Twoje postacie' : 'Nowa postac';
         panelLead.textContent = view === 'slots'
             ? 'Wybierz istniejaca postac albo stworz nowa karte obywatela Los Santos.'
@@ -158,7 +174,6 @@
         var full = state.characters.length >= state.maxSlots;
         tabCreate.disabled = state.busy || full;
         newCharacter.disabled = state.busy || full;
-        if (full && state.view === 'create') setView('slots');
     }
 
     function optionLabel(item) { return item && (item.label || item.id) || ''; }
@@ -175,9 +190,7 @@
     }
 
     function getById(items, id) {
-        for (var i = 0; i < items.length; i += 1) {
-            if (optionValue(items[i]) === id) return items[i];
-        }
+        for (var i = 0; i < items.length; i += 1) if (optionValue(items[i]) === id) return items[i];
         return null;
     }
 
@@ -204,7 +217,6 @@
         pointsLeft.textContent = left === 0 ? '0 wolnych' : (left > 0 ? '+' + left + ' wolnych' : left + ' ponad limit');
         pointsLeft.className = left === 0 ? 'ok' : 'warn';
         statsList.innerHTML = '';
-
         for (var i = 0; i < attrs.length; i += 1) {
             (function (attr) {
                 var row = document.createElement('div');
@@ -215,21 +227,15 @@
                 var controls = document.createElement('div');
                 controls.className = 'stat-controls';
                 var minus = document.createElement('button');
-                minus.type = 'button';
-                minus.textContent = '-';
                 var value = document.createElement('b');
-                value.textContent = String(state.stats[attr.id] || 0);
                 var plus = document.createElement('button');
-                plus.type = 'button';
-                plus.textContent = '+';
+                minus.type = 'button'; plus.type = 'button';
+                minus.textContent = '-'; plus.textContent = '+';
+                value.textContent = String(state.stats[attr.id] || 0);
                 minus.onclick = function () { adjustStat(attr.id, -1); };
                 plus.onclick = function () { adjustStat(attr.id, 1); };
-                controls.appendChild(minus);
-                controls.appendChild(value);
-                controls.appendChild(plus);
-                row.appendChild(info);
-                row.appendChild(controls);
-                statsList.appendChild(row);
+                controls.appendChild(minus); controls.appendChild(value); controls.appendChild(plus);
+                row.appendChild(info); row.appendChild(controls); statsList.appendChild(row);
             }(attrs[i]));
         }
     }
@@ -268,7 +274,6 @@
     function renderSlots() {
         characterSlots.innerHTML = '';
         slotCount.textContent = state.characters.length + '/' + state.maxSlots + ' sloty';
-
         if (!state.characters.length) {
             var empty = document.createElement('div');
             empty.className = 'empty-slot';
@@ -277,28 +282,25 @@
             setView('create');
             return;
         }
-
         for (var i = 0; i < state.characters.length; i += 1) {
             (function (character) {
                 var card = document.createElement('button');
+                var stats = character.stats || {};
                 card.className = 'slot-card';
                 card.type = 'button';
-                var stats = character.stats || {};
                 card.innerHTML = '<span class="slot-skin">' + formatSkin(character.skin) + '</span>'
                     + '<strong>' + character.firstname + ' ' + character.lastname + '</strong>'
-                    + '<small>' + (character.age || 18) + ' lat · ' + (character.archetype || 'worker') + '</small>'
+                    + '<small>' + (character.age || 18) + ' lat - ' + (character.archetype || 'worker') + '</small>'
                     + '<em>STR ' + (stats.strength || 4) + ' / END ' + (stats.endurance || 4) + ' / AGI ' + (stats.agility || 4) + '</em>';
                 card.onclick = function () { selectCharacter(character.id); };
                 characterSlots.appendChild(card);
             }(state.characters[i]));
         }
-
-        var missing = state.maxSlots - state.characters.length;
-        if (missing > 0) {
+        if (state.maxSlots - state.characters.length > 0) {
             var add = document.createElement('button');
             add.className = 'slot-card add';
             add.type = 'button';
-            add.innerHTML = '<strong>+ Nowa postac</strong><small>Wolne sloty: ' + missing + '</small>';
+            add.innerHTML = '<strong>+ Nowa postac</strong><small>Wolne sloty: ' + (state.maxSlots - state.characters.length) + '</small>';
             add.onclick = function () { setView('create'); };
             characterSlots.appendChild(add);
         }
@@ -319,74 +321,59 @@
         setBusy(true);
         setStatus('Laduje wybrana postac...', 'muted');
         if (emit('HeavyRPG:UI:character:select', { id: id })) waitForResponse();
-        else {
-            setBusy(false);
-            setStatus('Nie udalo sie polaczyc panelu z gra.', 'error');
-        }
+        else { setBusy(false); setStatus('Nie udalo sie polaczyc panelu z gra.', 'error'); }
     }
 
-    prevSkin.addEventListener('click', function () { selectSkinOffset(-1); emit('HeavyRPG:UI:character:prevSkin', {}); });
-    nextSkin.addEventListener('click', function () { selectSkinOffset(1); emit('HeavyRPG:UI:character:nextSkin', {}); });
-    tabSlots.addEventListener('click', function () { setView('slots'); });
-    tabCreate.addEventListener('click', function () { setView('create'); });
-    newCharacter.addEventListener('click', function () { setView('create'); });
-    originSelect.addEventListener('change', updateChoiceHint);
-    archetypeSelect.addEventListener('change', updateChoiceHint);
+    function collectFormData() {
+        return {
+            firstname: (form.elements.firstname.value || '').trim(),
+            lastname: (form.elements.lastname.value || '').trim(),
+            gender: genderSelect.value || 'male',
+            age: Number(ageInput.value || state.age.default || 24),
+            origin: originSelect.value || 'ls_native',
+            archetype: archetypeSelect.value || 'worker',
+            skin: Number(state.selectedSkin),
+            stats: state.stats
+        };
+    }
 
-    form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        if (state.busy) return;
+    prevSkin.onclick = function () { selectSkinOffset(-1); emit('HeavyRPG:UI:character:prevSkin', {}); };
+    nextSkin.onclick = function () { selectSkinOffset(1); emit('HeavyRPG:UI:character:nextSkin', {}); };
+    tabSlots.onclick = function () { setView('slots'); };
+    tabCreate.onclick = function () { setView('create'); };
+    newCharacter.onclick = function () { setView('create'); };
+    originSelect.onchange = updateChoiceHint;
+    archetypeSelect.onchange = updateChoiceHint;
 
-        var data = {};
-        new FormData(form).forEach(function (value, key) { data[key] = value; });
-        data.firstname = (data.firstname || '').trim();
-        data.lastname = (data.lastname || '').trim();
-        data.age = Number(data.age);
-        data.skin = Number(state.selectedSkin);
-        data.stats = state.stats;
-
-        if (data.firstname.length < 3 || data.lastname.length < 3) {
-            setStatus('Imie i nazwisko musza miec minimum 3 litery.', 'error');
-            return;
-        }
-        if (!isFiniteNumber(data.skin)) {
-            setStatus('Wybierz poprawny skin postaci.', 'error');
-            return;
-        }
-        if (statSum() !== (Number(state.statsConfig.points) || 24)) {
-            setStatus('Rozdziel dokladnie wszystkie punkty statystyk.', 'error');
-            return;
-        }
-
+    form.onsubmit = function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        if (state.busy) return false;
+        var data = collectFormData();
+        if (data.firstname.length < 3 || data.lastname.length < 3) { setStatus('Imie i nazwisko musza miec minimum 3 litery.', 'error'); return false; }
+        if (!isFiniteNumber(data.skin)) { setStatus('Wybierz poprawny skin postaci.', 'error'); return false; }
+        if (statSum() !== (Number(state.statsConfig.points) || 24)) { setStatus('Rozdziel dokladnie wszystkie punkty statystyk.', 'error'); return false; }
         setBusy(true);
         setStatus('Tworze pelna karte postaci...', 'muted');
         if (emit('HeavyRPG:UI:character:create', data)) waitForResponse();
-        else {
-            setBusy(false);
-            setStatus('Nie udalo sie polaczyc panelu z gra.', 'error');
-        }
-    });
+        else { setBusy(false); setStatus('Nie udalo sie polaczyc panelu z gra.', 'error'); }
+        return false;
+    };
 
     window.HeavyRPGCharacter = {
         receive: function (nameOrPacket, detailArg) {
             var packet = unwrapMtaJson(nameOrPacket);
             var name = packet;
             var detail = unwrapMtaJson(detailArg || {});
-            if (packet && typeof packet === 'object') {
-                name = packet.name;
-                detail = unwrapMtaJson(packet.detail || {});
-            }
+            if (packet && typeof packet === 'object') { name = packet.name; detail = unwrapMtaJson(packet.detail || {}); }
             if (!name) return;
-
             if (name === 'creator:show') {
                 state.characters = normalizeList(detail.characters, []);
                 state.maxSlots = Number(detail.maxSlots) || 3;
-                state.canCreate = detail.canCreate !== false;
                 state.skins = normalizeSkins(detail.skins, detail.defaultSkin);
                 state.genders = normalizeList(detail.genders, state.genders);
                 state.age = detail.age || state.age;
-                state.origins = normalizeList(detail.origins, state.origins);
-                state.archetypes = normalizeList(detail.archetypes, state.archetypes);
+                state.origins = normalizeList(detail.origins, fallbackOrigins);
+                state.archetypes = normalizeList(detail.archetypes, fallbackArchetypes);
                 state.statsConfig = detail.stats || fallbackStats;
                 ageInput.min = state.age.min || 18;
                 ageInput.max = state.age.max || 65;
@@ -401,9 +388,7 @@
                 updateChoiceHint();
                 setStatus('Wybierz postac albo przygotuj nowa.', 'muted');
             }
-
             if (name === 'creator:setSkin') updateSkinDisplay(detail.skin);
-
             if (name === 'creator:response') {
                 setBusy(false);
                 if (detail.ok) setStatus(detail.message || 'Postac gotowa.', 'success');
@@ -412,8 +397,11 @@
         }
     };
 
-    updateSkinDisplay(state.selectedSkin);
     fillSelect(genderSelect, state.genders);
+    fillSelect(originSelect, state.origins);
+    fillSelect(archetypeSelect, state.archetypes);
     resetStats();
+    updateSkinDisplay(state.selectedSkin);
     renderSlots();
+    updateChoiceHint();
 }());
