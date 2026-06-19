@@ -10,42 +10,91 @@
 <body>
     <main class="creator">
         <header class="head">
-            <span class="eyebrow">Creator Suite</span>
-            <h1>Nowa postac</h1>
-            <p>Wybierz wyglad i podstawowe dane. Podglad skina widzisz na zywo w miescie.</p>
+            <span class="eyebrow">HeavyRPG Identity System</span>
+            <h1 id="panelTitle">Twoje postacie</h1>
+            <p id="panelLead">Wybierz istniejaca postac albo stworz nowa karte obywatela Los Santos.</p>
         </header>
 
-        <section class="skin-panel">
-            <span class="label">Wybrany skin</span>
-            <div class="skin-row">
-                <button class="icon" id="prevSkin" type="button">‹</button>
-                <div class="skin-id" id="skinId">046</div>
-                <button class="icon" id="nextSkin" type="button">›</button>
+        <nav class="tabs">
+            <button id="tabSlots" class="tab active" type="button">Sloty</button>
+            <button id="tabCreate" class="tab" type="button">Nowa postac</button>
+        </nav>
+
+        <section id="slotsView" class="view active">
+            <div class="slot-summary">
+                <span id="slotCount">0/3 sloty</span>
+                <button id="newCharacter" class="secondary" type="button">Nowa karta</button>
             </div>
+            <div id="characterSlots" class="slots"></div>
         </section>
 
-        <form id="characterForm" class="form">
-            <label>
-                Imie
-                <input name="firstname" autocomplete="off" maxlength="18" placeholder="np. Adrian" />
-            </label>
+        <section id="createView" class="view">
+            <section class="skin-panel">
+                <span class="label">Wybrany skin</span>
+                <div class="skin-row">
+                    <button class="icon" id="prevSkin" type="button">‹</button>
+                    <div class="skin-id" id="skinId">046</div>
+                    <button class="icon" id="nextSkin" type="button">›</button>
+                </div>
+            </section>
 
-            <label>
-                Nazwisko
-                <input name="lastname" autocomplete="off" maxlength="18" placeholder="np. Kowalski" />
-            </label>
+            <form id="characterForm" class="form">
+                <div class="two-col">
+                    <label>
+                        Imie
+                        <input name="firstname" autocomplete="off" maxlength="18" placeholder="np. Tomasz" />
+                    </label>
 
-            <div id="status" class="status muted">Ustaw kamere, wybierz skin i zatwierdz postac.</div>
+                    <label>
+                        Nazwisko
+                        <input name="lastname" autocomplete="off" maxlength="18" placeholder="np. Bolek" />
+                    </label>
+                </div>
 
-            <button type="submit" class="primary">Rozpocznij gre</button>
-        </form>
+                <div class="two-col">
+                    <label>
+                        Plec
+                        <select name="gender" id="genderSelect"></select>
+                    </label>
+
+                    <label>
+                        Wiek
+                        <input name="age" id="ageInput" type="number" min="18" max="65" value="24" />
+                    </label>
+                </div>
+
+                <label>
+                    Pochodzenie
+                    <select name="origin" id="originSelect"></select>
+                </label>
+
+                <label>
+                    Archetyp HeavyRPG
+                    <select name="archetype" id="archetypeSelect"></select>
+                </label>
+
+                <div id="choiceHint" class="hint">Dobierz pochodzenie i archetyp pod styl gry.</div>
+
+                <section class="stats-panel">
+                    <div class="stats-head">
+                        <span class="label">Punkty statystyk</span>
+                        <strong id="pointsLeft">0</strong>
+                    </div>
+                    <div id="statsList" class="stats-list"></div>
+                </section>
+
+                <div id="status" class="status muted">Wybierz slot albo przygotuj nowa postac.</div>
+
+                <button type="submit" class="primary">Stworz postac</button>
+            </form>
+        </section>
 
         <footer class="foot">
-            <span>Live skin preview</span>
+            <span>Character slots</span>
             <span>HeavyRPG</span>
         </footer>
     </main>
 
-    <script src="app.js?v=20260619-3"></script>
+    <script src="app.js?v=20260619-4"></script>
 </body>
 </html>
