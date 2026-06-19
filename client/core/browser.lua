@@ -7,29 +7,55 @@ HRP.Browser = HRP.Browser or {
     visible = false,
     sx = 0,
     sy = 0,
+    x = 0,
+    y = 0,
+    w = 0,
+    h = 0,
     lastCursorX = 0,
     lastCursorY = 0
 }
 
 local Browser = HRP.Browser
 
+local function updatePanelBounds()
+    Browser.sx, Browser.sy = guiGetScreenSize()
+    Browser.w = math.min(520, math.max(320, Browser.sx - 48))
+    Browser.h = math.min(640, math.max(420, Browser.sy - 48))
+    Browser.x = math.floor((Browser.sx - Browser.w) / 2)
+    Browser.y = math.floor((Browser.sy - Browser.h) / 2)
+end
+
+local function isInsidePanel(absX, absY)
+    return absX >= Browser.x and absX <= Browser.x + Browser.w and absY >= Browser.y and absY <= Browser.y + Browser.h
+end
+
+local function toBrowserPoint(absX, absY)
+    return absX - Browser.x, absY - Browser.y
+end
+
 local function renderBrowser()
     if Browser.visible and Browser.element then
-        dxDrawImage(0, 0, Browser.sx, Browser.sy, Browser.element, 0, 0, 0, tocolor(255, 255, 255, 255), true)
+        dxDrawImage(Browser.x, Browser.y, Browser.w, Browser.h, Browser.element, 0, 0, 0, tocolor(255, 255, 255, 255), true)
     end
 end
 
 local function cursorMove(_, _, absX, absY)
     if not Browser.visible or not Browser.element then return end
     Browser.lastCursorX, Browser.lastCursorY = absX, absY
-    injectBrowserMouseMove(Browser.element, absX, absY)
+
+    if not isInsidePanel(absX, absY) then return end
+
+    local browserX, browserY = toBrowserPoint(absX, absY)
+    injectBrowserMouseMove(Browser.element, browserX, browserY)
 end
 
 local function cursorClick(button, state, absX, absY)
     if not Browser.visible or not Browser.element then return end
     if button ~= "left" and button ~= "right" and button ~= "middle" then return end
+    if not isInsidePanel(absX, absY) then return end
 
-    injectBrowserMouseMove(Browser.element, absX, absY)
+    local browserX, browserY = toBrowserPoint(absX, absY)
+    injectBrowserMouseMove(Browser.element, browserX, browserY)
     if state == "down" then
         injectBrowserMouseDown(Browser.element, button)
     else
@@ -39,13 +65,15 @@ end
 
 local function mouseWheel(key)
     if not Browser.visible or not Browser.element then return end
+    if not isInsidePanel(Browser.lastCursorX, Browser.lastCursorY) then return end
+
     local delta = key == "mouse_wheel_up" and 1 or -1
     injectBrowserMouseWheel(Browser.element, delta, 0)
 end
 
 function Browser.init(callback)
-    Browser.sx, Browser.sy = guiGetScreenSize()
-    Browser.element = createBrowser(math.max(1, Browser.sx), math.max(1, Browser.sy), true, true)
+    updatePanelBounds()
+    Browser.element = createBrowser(math.max(1, Browser.w), math.max(1, Browser.h), true, true)
 
     if not Browser.element then
         outputDebugString("[HeavyRPG:UI] Nie udalo sie utworzyc CEF browsera.", 1)
@@ -82,6 +110,7 @@ function Browser.setVisible(state)
     end
 
     if state then
+        updatePanelBounds()
         addEventHandler("onClientRender", root, renderBrowser)
         addEventHandler("onClientCursorMove", root, cursorMove)
         addEventHandler("onClientClick", root, cursorClick)
