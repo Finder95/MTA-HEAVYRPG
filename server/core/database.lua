@@ -103,24 +103,47 @@ local schema = {
 }
 
 local migrations = {
-    [[ALTER TABLE characters ADD COLUMN gender TEXT NOT NULL DEFAULT 'male']],
-    [[ALTER TABLE characters ADD COLUMN origin TEXT NOT NULL DEFAULT 'ls_native']],
-    [[ALTER TABLE characters ADD COLUMN archetype TEXT NOT NULL DEFAULT 'worker']],
-    [[ALTER TABLE characters ADD COLUMN strength INTEGER NOT NULL DEFAULT 4]],
-    [[ALTER TABLE characters ADD COLUMN endurance INTEGER NOT NULL DEFAULT 4]],
-    [[ALTER TABLE characters ADD COLUMN agility INTEGER NOT NULL DEFAULT 4]],
-    [[ALTER TABLE characters ADD COLUMN intelligence INTEGER NOT NULL DEFAULT 4]],
-    [[ALTER TABLE characters ADD COLUMN charisma INTEGER NOT NULL DEFAULT 4]],
-    [[ALTER TABLE characters ADD COLUMN focus INTEGER NOT NULL DEFAULT 4]],
-    [[ALTER TABLE characters ADD COLUMN stat_points INTEGER NOT NULL DEFAULT 24]],
-    [[ALTER TABLE characters ADD COLUMN playtime INTEGER NOT NULL DEFAULT 0]],
-    [[ALTER TABLE characters ADD COLUMN last_played_at INTEGER]]
+    { column = "gender", sql = [[ALTER TABLE characters ADD COLUMN gender TEXT NOT NULL DEFAULT 'male']] },
+    { column = "origin", sql = [[ALTER TABLE characters ADD COLUMN origin TEXT NOT NULL DEFAULT 'ls_native']] },
+    { column = "archetype", sql = [[ALTER TABLE characters ADD COLUMN archetype TEXT NOT NULL DEFAULT 'worker']] },
+    { column = "strength", sql = [[ALTER TABLE characters ADD COLUMN strength INTEGER NOT NULL DEFAULT 4]] },
+    { column = "endurance", sql = [[ALTER TABLE characters ADD COLUMN endurance INTEGER NOT NULL DEFAULT 4]] },
+    { column = "agility", sql = [[ALTER TABLE characters ADD COLUMN agility INTEGER NOT NULL DEFAULT 4]] },
+    { column = "intelligence", sql = [[ALTER TABLE characters ADD COLUMN intelligence INTEGER NOT NULL DEFAULT 4]] },
+    { column = "charisma", sql = [[ALTER TABLE characters ADD COLUMN charisma INTEGER NOT NULL DEFAULT 4]] },
+    { column = "focus", sql = [[ALTER TABLE characters ADD COLUMN focus INTEGER NOT NULL DEFAULT 4]] },
+    { column = "stat_points", sql = [[ALTER TABLE characters ADD COLUMN stat_points INTEGER NOT NULL DEFAULT 24]] },
+    { column = "playtime", sql = [[ALTER TABLE characters ADD COLUMN playtime INTEGER NOT NULL DEFAULT 0]] },
+    { column = "last_played_at", sql = [[ALTER TABLE characters ADD COLUMN last_played_at INTEGER]] }
 }
 
+local function getTableColumns(tableName)
+    local columns = {}
+    local qh = dbQuery(HRP.DB.connection, "PRAGMA table_info(" .. tostring(tableName) .. ")")
+    if not qh then return columns end
+
+    local rows = dbPoll(qh, -1)
+    if type(rows) ~= "table" then return columns end
+
+    for _, row in ipairs(rows) do
+        if row.name then
+            columns[tostring(row.name)] = true
+        end
+    end
+
+    return columns
+end
+
 local function applyCompatibleMigrations()
-    for _, sql in ipairs(migrations) do
-        -- SQLite has no ADD COLUMN IF NOT EXISTS in older builds. Duplicate-column failures are expected.
-        dbExec(HRP.DB.connection, sql)
+    local columns = getTableColumns("characters")
+    for _, migration in ipairs(migrations) do
+        if not columns[migration.column] then
+            if dbExec(HRP.DB.connection, migration.sql) then
+                columns[migration.column] = true
+            else
+                HRP.Logger.error("database", "Blad migracji kolumny characters." .. tostring(migration.column))
+            end
+        end
     end
 end
 
