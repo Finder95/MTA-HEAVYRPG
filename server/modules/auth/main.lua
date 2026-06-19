@@ -24,6 +24,10 @@ local function showAuth(player, reason)
     })
 end
 
+local function generatedEmail(username)
+    return HRP.Utils.lower(username) .. "@local.heavyrpg"
+end
+
 local function finishLogin(player, account, remember, authType)
     HRP.Auth.Repository.updateSuccessfulLogin(account.id, player)
 
@@ -131,7 +135,7 @@ local function handleRegister(player, payload)
     end
 
     local username = HRP.Utils.trim(payload.username)
-    local email = HRP.Utils.lower(payload.email)
+    local email = generatedEmail(username)
     local password = tostring(payload.password)
     local remember = HRP.Utils.bool(payload.remember)
     local serial = getPlayerSerial(player)
@@ -148,7 +152,7 @@ local function handleRegister(player, payload)
             if not isElement(player) then return end
             if existing then
                 HRP.Security.audit(nil, username, "register", false, player, "ACCOUNT_EXISTS")
-                sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Login lub e-mail jest juz zajety.")
+                sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Ten login jest juz zajety.")
                 return
             end
 
@@ -163,13 +167,16 @@ local function handleRegister(player, payload)
                     if not isElement(player) then return end
                     if not created then
                         HRP.Security.audit(nil, username, "register", false, player, "INSERT_FAILED")
-                        sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Nie udalo sie utworzyc konta. Mozliwe, ze login/e-mail jest zajety.")
+                        sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Nie udalo sie utworzyc konta. Mozliwe, ze login jest zajety.")
                         return
                     end
 
                     HRP.Security.audit(accountId, username, "register", true, player, "OK")
                     HRP.Auth.Repository.findById(accountId, function(account)
-                        if not isElement(player) or not account then return end
+                        if not isElement(player) or not account then
+                            sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Konto utworzono, ale nie udalo sie go zalogowac.")
+                            return
+                        end
                         finishLogin(player, account, remember, "register")
                     end)
                 end)
