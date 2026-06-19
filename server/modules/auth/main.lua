@@ -28,6 +28,22 @@ local function generatedEmail(username)
     return HRP.Utils.lower(username) .. "@local.heavyrpg"
 end
 
+local function routeAfterAuth(player, account, publicAccount)
+    if HRP.Character and HRP.Character.Repository then
+        HRP.Character.Repository.findByAccountId(account.id, function(character)
+            if not isElement(player) then return end
+            if character then
+                triggerEvent("HeavyRPG:Character:onPlayerReady", resourceRoot, player, HRP.Character.getPublic(character))
+            else
+                HRP.Character.showCreator(player, publicAccount)
+            end
+        end)
+        return
+    end
+
+    triggerEvent("HeavyRPG:Auth:onPlayerLoggedIn", resourceRoot, player, publicAccount)
+end
+
 local function finishLogin(player, account, remember, authType)
     HRP.Auth.Repository.updateSuccessfulLogin(account.id, player)
 
@@ -35,7 +51,7 @@ local function finishLogin(player, account, remember, authType)
         local payload = HRP.Auth.Session.attach(player, account, authType or "password", token)
         HRP.Security.audit(account.id, account.username, authType or "login", true, player, "OK")
         sendAuth(player, authType == "register" and "register" or "login", true, HRP.AuthCodes.OK, "Zalogowano pomyslnie.", payload)
-        triggerEvent("HeavyRPG:Auth:onPlayerLoggedIn", resourceRoot, player, payload.account)
+        routeAfterAuth(player, account, payload.account)
     end
 
     if remember then
@@ -199,7 +215,7 @@ local function handleResume(player, token)
         if ok then
             HRP.Security.audit(data.account.id, data.account.username, "resume", true, player, "OK")
             sendAuth(player, "resume", true, HRP.AuthCodes.OK, "Sesja przywrocona.", data)
-            triggerEvent("HeavyRPG:Auth:onPlayerLoggedIn", resourceRoot, player, data.account)
+            routeAfterAuth(player, data.account, data.account)
         else
             HRP.Security.audit(nil, nil, "resume", false, player, tostring(code))
             showAuth(player, tostring(code or "session_invalid"))
