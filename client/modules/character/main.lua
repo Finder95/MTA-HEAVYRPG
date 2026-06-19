@@ -63,8 +63,8 @@ end
 
 local function updateBounds()
     Creator.sx, Creator.sy = guiGetScreenSize()
-    Creator.w = math.min(420, math.max(320, Creator.sx - 48))
-    Creator.h = math.min(640, math.max(440, Creator.sy - 48))
+    Creator.w = math.min(520, math.max(360, Creator.sx - 48))
+    Creator.h = math.min(760, math.max(520, Creator.sy - 48))
     Creator.x = math.floor(Creator.sx - Creator.w - 42)
     Creator.y = math.floor((Creator.sy - Creator.h) / 2)
 
@@ -381,6 +381,21 @@ addEventHandler("HeavyRPG:UI:character:create", root, function(jsonPayload)
     local sent = triggerServerEvent("HeavyRPG:Character:create", resourceRoot, payload)
     if sent == false then
         emit("creator:response", { ok = false, message = "Nie udalo sie wyslac danych do serwera." })
+    end
+end)
+
+addEvent("HeavyRPG:UI:character:select", true)
+addEventHandler("HeavyRPG:UI:character:select", root, function(jsonPayload)
+    local payload = decodePayload(jsonPayload)
+    local characterId = tonumber(payload.id or payload.characterId)
+    if not characterId then
+        emit("creator:response", { ok = false, message = "Niepoprawny wybor postaci." })
+        return
+    end
+
+    local sent = triggerServerEvent("HeavyRPG:Character:select", resourceRoot, characterId)
+    if sent == false then
+        emit("creator:response", { ok = false, message = "Nie udalo sie wybrac postaci." })
     end
 end)
 
