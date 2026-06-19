@@ -68,7 +68,7 @@ HRP.Config = {
             rotation = 0,
             interior = 0,
             dimension = 65000,
-            camera = { 0, 4.2, 3001.25, 0, 0, 3000.85 },
+            camera = { 0, 3.35, 3001.18, 0, 0, 3000.86 },
             animation = { block = "DEALER", name = "DEALER_IDLE" }
         }
     },
