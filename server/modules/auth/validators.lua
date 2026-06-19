@@ -50,16 +50,6 @@ function V.password(password)
         return false, "Haslo jest za dlugie. Maksymalnie " .. cfg.passwordMax .. " znaki."
     end
 
-    local classes = 0
-    if password:match("%l") then classes = classes + 1 end
-    if password:match("%u") then classes = classes + 1 end
-    if password:match("%d") then classes = classes + 1 end
-    if password:match("[^%w]") then classes = classes + 1 end
-
-    if classes < 2 then
-        return false, "Haslo powinno zawierac przynajmniej dwa typy znakow."
-    end
-
     return true
 end
 
@@ -72,7 +62,7 @@ function V.loginPayload(payload)
     local password = payload.password
 
     if #identifier < 3 then
-        return false, "Wpisz login lub e-mail."
+        return false, "Wpisz login."
     end
 
     if type(password) ~= "string" or #password < 1 then
@@ -90,19 +80,8 @@ function V.registerPayload(payload)
     local ok, reason = V.username(payload.username)
     if not ok then return false, reason end
 
-    ok, reason = V.email(payload.email)
-    if not ok then return false, reason end
-
     ok, reason = V.password(payload.password)
     if not ok then return false, reason end
-
-    if payload.password ~= payload.passwordRepeat then
-        return false, "Hasla nie sa takie same."
-    end
-
-    if not HRP.Utils.bool(payload.rules) then
-        return false, "Musisz zaakceptowac regulamin serwera."
-    end
 
     return true
 end
