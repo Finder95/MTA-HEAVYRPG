@@ -29,8 +29,8 @@ end
 local function uiScale()
     local sx, sy = guiGetScreenSize()
     local scale = math.min(sx / 1600, sy / 900)
-    if scale < 0.95 then scale = 0.95 end
-    if scale > 1.55 then scale = 1.55 end
+    if scale < 1.05 then scale = 1.05 end
+    if scale > 1.65 then scale = 1.65 end
     return scale, sx, sy
 end
 
@@ -115,17 +115,17 @@ local function drawStatusBar(kind, label, value, x, y, w, h, barColorName, inver
     local fill = inverse and (100 - value) or value
     local danger = (not inverse and value <= 18) or (inverse and value >= 82)
     local fillColor = danger and color("danger", 235) or color(barColorName, 228)
-    local iconSize = 22 * scale
-    local barX = x + iconSize + 10 * scale
-    local barY = y + 9 * scale
-    local labelScale = 0.72 * scale
+    local iconSize = 26 * scale
+    local barX = x + iconSize + 12 * scale
+    local barY = y + 12 * scale
+    local labelScale = 0.78 * scale
 
     drawIcon(kind, x, y + 2 * scale, iconSize, fillColor)
-    shadowText(label, barX, y - 3 * scale, barX + w, y + 14 * scale, color("text", 220), labelScale, "default-bold")
-    shadowText(tostring(math.floor(value)), barX, y - 3 * scale, barX + w, y + 14 * scale, danger and color("danger", 240) or color("muted", 220), labelScale, "default-bold", "right")
+    shadowText(label, barX, y - 2 * scale, barX + w, y + 17 * scale, color("text", 220), labelScale, "default-bold")
+    shadowText(tostring(math.floor(value)), barX, y - 2 * scale, barX + w, y + 17 * scale, danger and color("danger", 240) or color("muted", 220), labelScale, "default-bold", "right")
 
     dxDrawRectangle(barX, barY, w, h, color("barBack", 150), true)
-    dxDrawRectangle(barX, barY, math.max(3 * scale, w * (fill / 100)), h, fillColor, true)
+    dxDrawRectangle(barX, barY, math.max(4 * scale, w * (fill / 100)), h, fillColor, true)
     dxDrawRectangle(barX, barY + h - math.max(1, scale), w, math.max(1, scale), tocolor(0, 0, 0, 120), true)
 end
 
@@ -136,13 +136,15 @@ local function getVehicleSpeed()
     return math.floor(((vx * vx + vy * vy + vz * vz) ^ 0.5) * 180)
 end
 
-local function drawStatusCluster(scale, sx, sy)
-    local margin = 34 * scale
-    local row = 37 * scale
-    local barW = 265 * scale
-    local barH = 12 * scale
-    local x = margin
-    local y = sy - margin - row * 6
+local function drawStatusCluster(scale, sx)
+    local margin = 36 * scale
+    local row = 43 * scale
+    local barW = 310 * scale
+    local barH = 14 * scale
+    local iconSize = 26 * scale
+    local totalW = iconSize + 12 * scale + barW
+    local x = sx - margin - totalW
+    local y = 118 * scale
 
     drawStatusBar("health", "Zdrowie", getElementHealth(localPlayer), x, y, barW, barH, "health", false, scale)
     drawStatusBar("armor", "Pancerz", getPedArmor(localPlayer), x, y + row, barW, barH, "armor", false, scale)
@@ -157,16 +159,16 @@ local function drawMoneyBlock(scale, sx)
     local hour, minute = getTime()
     local x = sx - 36 * scale
     local y = 28 * scale
-    local textScale = 0.86 * scale
-    local smallScale = 0.74 * scale
-    local lineH = 21 * scale
+    local textScale = 0.92 * scale
+    local smallScale = 0.80 * scale
+    local lineH = 23 * scale
 
-    shadowText("Gotowka " .. money(HUD.money.cash or getPlayerMoney(localPlayer)), x - 330 * scale, y, x, y + lineH, color("cash", 235), textScale, "default-bold", "right")
-    shadowText("Konto " .. money(HUD.money.bank or 0), x - 330 * scale, y + lineH, x, y + lineH * 2, color("text", 220), smallScale, "default-bold", "right")
-    shadowText(string.format("%02d:%02d", hour or 0, minute or 0), x - 160 * scale, y + lineH * 2, x, y + lineH * 3, color("muted", 220), smallScale, "default-bold", "right")
+    shadowText("Gotowka " .. money(HUD.money.cash or getPlayerMoney(localPlayer)), x - 390 * scale, y, x, y + lineH, color("cash", 235), textScale, "default-bold", "right")
+    shadowText("Konto " .. money(HUD.money.bank or 0), x - 390 * scale, y + lineH, x, y + lineH * 2, color("text", 220), smallScale, "default-bold", "right")
+    shadowText(string.format("%02d:%02d", hour or 0, minute or 0), x - 190 * scale, y + lineH * 2, x, y + lineH * 3, color("muted", 220), smallScale, "default-bold", "right")
 
     if speed then
-        shadowText(tostring(speed) .. " km/h", x - 160 * scale, y + lineH * 3, x, y + lineH * 4, color("text", 220), textScale, "default-bold", "right")
+        shadowText(tostring(speed) .. " km/h", x - 190 * scale, y + lineH * 3, x, y + lineH * 4, color("text", 220), textScale, "default-bold", "right")
     end
 end
 
@@ -176,8 +178,8 @@ local function renderHUD()
 
     local scale, sx, sy = uiScale()
     HUD.sx, HUD.sy = sx, sy
-    drawStatusCluster(scale, sx, sy)
     drawMoneyBlock(scale, sx)
+    drawStatusCluster(scale, sx)
 end
 
 local function hideDefaultComponents()
