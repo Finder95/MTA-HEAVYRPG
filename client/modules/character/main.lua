@@ -97,6 +97,7 @@ local function createPreviewPed(skin)
     if Creator.previewPed then
         setElementInterior(Creator.previewPed, preview.interior or 0)
         setElementDimension(Creator.previewPed, preview.dimension or 0)
+        setElementRotation(Creator.previewPed, 0, 0, preview.rotation or 0)
         setElementFrozen(Creator.previewPed, true)
         applyPreviewAnimation()
     end
@@ -175,6 +176,7 @@ local function setupPreview(payload)
 
     setElementInterior(localPlayer, preview.interior or 0)
     setElementDimension(localPlayer, preview.dimension or 0)
+    setElementPosition(localPlayer, preview.x, preview.y, preview.z - 20)
     setElementFrozen(localPlayer, true)
     setCameraInterior(preview.interior or 0)
     setCameraMatrix(camera[1], camera[2], camera[3], camera[4], camera[5], camera[6])
@@ -287,6 +289,12 @@ local function hideCreator()
     Creator.pendingPayload = nil
     Creator.previewConfig = nil
 end
+
+addEvent("HeavyRPG:UI:character:prevSkin", true)
+addEventHandler("HeavyRPG:UI:character:prevSkin", root, previewPreviousSkin)
+
+addEvent("HeavyRPG:UI:character:nextSkin", true)
+addEventHandler("HeavyRPG:UI:character:nextSkin", root, previewNextSkin)
 
 addEvent("HeavyRPG:UI:character:previewSkin", true)
 addEventHandler("HeavyRPG:UI:character:previewSkin", root, function(jsonPayload)
