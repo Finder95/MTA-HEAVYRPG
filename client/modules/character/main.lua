@@ -7,6 +7,7 @@ HRP.ClientCharacter = HRP.ClientCharacter or {
     visible = false,
     pendingPayload = nil,
     previewPed = nil,
+    previewConfig = nil,
     sx = 0,
     sy = 0,
     x = 0,
@@ -26,6 +27,32 @@ local function decodePayload(jsonPayload)
     local data = fromJSON(jsonPayload)
     if type(data) ~= "table" then return {} end
     return data
+end
+
+local function normalizeSkins(value, fallback)
+    local list = {}
+
+    if type(value) == "table" then
+        for key, skin in pairs(value) do
+            local numericKey = tonumber(key) or 0
+            list[#list + 1] = { order = numericKey, skin = tonumber(skin) }
+        end
+    end
+
+    table.sort(list, function(a, b) return a.order < b.order end)
+
+    local normalized = {}
+    for _, entry in ipairs(list) do
+        if entry.skin and entry.skin >= 0 then
+            normalized[#normalized + 1] = entry.skin
+        end
+    end
+
+    if #normalized == 0 then
+        normalized[1] = tonumber(fallback) or HRP.Config.character.defaultSkin or 46
+    end
+
+    return normalized
 end
 
 local function updateBounds()
@@ -53,12 +80,29 @@ local function applyPreviewAnimation()
     setPedAnimation(Creator.previewPed, anim.block or "DEALER", anim.name or "DEALER_IDLE", -1, true, false, false, false)
 end
 
-local function renderCreator()
+local function destroyPreviewPed()
     if Creator.previewPed and isElement(Creator.previewPed) then
-        local _, _, rz = getElementRotation(Creator.previewPed)
-        setElementRotation(Creator.previewPed, 0, 0, (tonumber(rz) or 0) + 0.08)
+        destroyElement(Creator.previewPed)
     end
+    Creator.previewPed = nil
+end
 
+local function createPreviewPed(skin)
+    local preview = Creator.previewConfig or HRP.Config.character.preview
+    skin = tonumber(skin) or Creator.selectedSkin or HRP.Config.character.defaultSkin
+    Creator.selectedSkin = skin
+
+    destroyPreviewPed()
+    Creator.previewPed = createPed(skin, preview.x, preview.y, preview.z, preview.rotation or 0)
+    if Creator.previewPed then
+        setElementInterior(Creator.previewPed, preview.interior or 0)
+        setElementDimension(Creator.previewPed, preview.dimension or 0)
+        setElementFrozen(Creator.previewPed, true)
+        applyPreviewAnimation()
+    end
+end
+
+local function renderCreator()
     if Creator.visible and Creator.browser then
         dxDrawImage(Creator.x, Creator.y, Creator.w, Creator.h, Creator.browser, 0, 0, 0, tocolor(255, 255, 255, 255), true)
     end
@@ -113,21 +157,9 @@ local function emit(name, detail)
     return call("window.HeavyRPGCharacter && window.HeavyRPGCharacter.receive", { name = name, detail = detail or {} })
 end
 
-local function destroyPreviewPed()
-    if Creator.previewPed and isElement(Creator.previewPed) then
-        destroyElement(Creator.previewPed)
-    end
-    Creator.previewPed = nil
-end
-
 local function setPreviewSkin(skin)
-    skin = tonumber(skin) or Creator.selectedSkin or HRP.Config.character.defaultSkin
-    Creator.selectedSkin = skin
-
-    if Creator.previewPed and isElement(Creator.previewPed) then
-        setElementModel(Creator.previewPed, skin)
-        applyPreviewAnimation()
-    end
+    createPreviewPed(skin)
+    emit("creator:setSkin", { skin = Creator.selectedSkin })
 end
 
 local function setupPreview(payload)
@@ -135,17 +167,11 @@ local function setupPreview(payload)
     local camera = preview.camera or HRP.Config.character.preview.camera
     local skin = tonumber(payload.defaultSkin) or HRP.Config.character.defaultSkin
 
-    Creator.skins = payload.skins or HRP.Config.character.skins or {}
+    Creator.previewConfig = preview
+    Creator.skins = normalizeSkins(payload.skins or HRP.Config.character.skins, skin)
     Creator.selectedSkin = skin
 
-    destroyPreviewPed()
-    Creator.previewPed = createPed(skin, preview.x, preview.y, preview.z, preview.rotation or 180)
-    if Creator.previewPed then
-        setElementInterior(Creator.previewPed, preview.interior or 0)
-        setElementDimension(Creator.previewPed, preview.dimension or 0)
-        setElementFrozen(Creator.previewPed, true)
-        applyPreviewAnimation()
-    end
+    createPreviewPed(skin)
 
     setElementInterior(localPlayer, preview.interior or 0)
     setElementDimension(localPlayer, preview.dimension or 0)
@@ -171,7 +197,6 @@ local function selectPreviewOffset(offset)
     if nextIndex > #Creator.skins then nextIndex = 1 end
 
     setPreviewSkin(Creator.skins[nextIndex])
-    emit("creator:setSkin", { skin = Creator.selectedSkin })
 end
 
 local function previewPreviousSkin()
@@ -260,6 +285,7 @@ local function hideCreator()
     setVisible(false)
     destroyPreviewPed()
     Creator.pendingPayload = nil
+    Creator.previewConfig = nil
 end
 
 addEvent("HeavyRPG:UI:character:previewSkin", true)
