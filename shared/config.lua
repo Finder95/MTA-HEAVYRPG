@@ -134,12 +134,20 @@ HRP.Config = {
 
     hud = {
         enabled = true,
-        style = "retro",
-        accent = { 46, 255, 139 },
-        warning = { 255, 190, 82 },
-        danger = { 255, 74, 74 },
-        background = { 5, 12, 10, 205 },
-        scanlineAlpha = 28
+        style = "heavy_rp_bars",
+        text = { 218, 211, 196 },
+        muted = { 122, 117, 106 },
+        background = { 0, 0, 0, 118 },
+        barBack = { 18, 17, 15, 165 },
+        health = { 154, 48, 42 },
+        armor = { 108, 119, 126 },
+        hunger = { 156, 117, 66 },
+        thirst = { 77, 123, 151 },
+        energy = { 181, 160, 92 },
+        hygiene = { 118, 133, 118 },
+        stress = { 112, 77, 82 },
+        cash = { 190, 176, 124 },
+        danger = { 185, 46, 42 }
     },
 
     ui = {
