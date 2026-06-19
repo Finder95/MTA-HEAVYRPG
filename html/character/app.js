@@ -1,23 +1,27 @@
-(() => {
-    const state = {
+(function () {
+    var fallbackSkins = [46, 47, 48, 60, 98, 101, 170, 171, 180, 184, 185, 186, 187, 188, 227, 240, 250, 261];
+    var state = {
         busy: false,
-        skins: [],
+        skins: fallbackSkins.slice(0),
         selectedIndex: 0,
-        selectedSkin: 0,
+        selectedSkin: 46,
         responseTimer: null
     };
 
-    const $ = (selector) => document.querySelector(selector);
-    const $$ = (selector, root = document) => Array.prototype.slice.call(root.querySelectorAll(selector));
-    const status = $('#status');
-    const form = $('#characterForm');
-    const skinId = $('#skinId');
-    const prevSkin = $('#prevSkin');
-    const nextSkin = $('#nextSkin');
+    function $(selector) { return document.querySelector(selector); }
+    function $$(selector, root) {
+        return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+    }
 
-    function setStatus(message, type = 'muted') {
+    var status = $('#status');
+    var form = $('#characterForm');
+    var skinId = $('#skinId');
+    var prevSkin = $('#prevSkin');
+    var nextSkin = $('#nextSkin');
+
+    function setStatus(message, type) {
         status.textContent = message || '';
-        status.className = `status ${type}`;
+        status.className = 'status ' + (type || 'muted');
     }
 
     function clearResponseTimer() {
@@ -28,22 +32,22 @@
     }
 
     function setBusy(value) {
-        state.busy = value;
-        $$('button, input').forEach((el) => { el.disabled = value; });
-        if (!value) clearResponseTimer();
+        state.busy = value === true;
+        $$('button, input').forEach(function (el) { el.disabled = state.busy; });
+        if (!state.busy) clearResponseTimer();
     }
 
     function waitForResponse() {
         clearResponseTimer();
-        state.responseTimer = setTimeout(() => {
+        state.responseTimer = setTimeout(function () {
             setBusy(false);
             setStatus('Serwer nie odpowiedzial. Sprobuj ponownie albo sprawdz konsole serwera.', 'error');
         }, 15000);
     }
 
     function formData(formElement) {
-        const data = {};
-        new FormData(formElement).forEach((value, key) => {
+        var data = {};
+        new FormData(formElement).forEach(function (value, key) {
             data[key] = value;
         });
         return data;
@@ -63,38 +67,60 @@
     }
 
     function normalizeSkins(value, fallback) {
-        let list = [];
-        if (Array.isArray(value)) {
+        var list = [];
+        var key;
+
+        if (Object.prototype.toString.call(value) === '[object Array]') {
             list = value;
         } else if (value && typeof value === 'object') {
-            list = Object.keys(value)
-                .sort((a, b) => Number(a) - Number(b))
-                .map((key) => value[key]);
+            var keys = Object.keys(value).sort(function (a, b) { return Number(a) - Number(b); });
+            for (var i = 0; i < keys.length; i += 1) {
+                key = keys[i];
+                list.push(value[key]);
+            }
         }
 
-        list = list.map((skin) => Number(skin)).filter((skin) => isFiniteNumber(skin) && skin >= 0);
-        if (!list.length) list = [isFiniteNumber(Number(fallback)) ? Number(fallback) : 46];
+        list = list.map(function (skin) { return Number(skin); }).filter(function (skin) {
+            return isFiniteNumber(skin) && skin >= 0;
+        });
+
+        if (!list.length) {
+            list = fallbackSkins.slice(0);
+        }
+
+        var fallbackSkin = Number(fallback);
+        if (isFiniteNumber(fallbackSkin) && list.indexOf(fallbackSkin) === -1) {
+            list.unshift(fallbackSkin);
+        }
+
         return list;
     }
 
     function formatSkin(value) {
-        return String(value || 0).padStart(3, '0');
+        var text = String(value || 0);
+        while (text.length < 3) text = '0' + text;
+        return text;
     }
 
     function updateSkinDisplay(skin) {
-        const numericSkin = Number(skin);
+        var numericSkin = Number(skin);
         if (!isFiniteNumber(numericSkin)) return;
 
         state.selectedSkin = numericSkin;
-        const foundIndex = state.skins.findIndex((item) => Number(item) === state.selectedSkin);
-        if (foundIndex >= 0) state.selectedIndex = foundIndex;
+        for (var i = 0; i < state.skins.length; i += 1) {
+            if (Number(state.skins[i]) === state.selectedSkin) {
+                state.selectedIndex = i;
+                break;
+            }
+        }
         skinId.textContent = formatSkin(state.selectedSkin);
     }
 
     function selectSkinOffset(offset) {
-        if (state.busy || !state.skins.length) return;
+        if (state.busy) return;
+        if (!state.skins.length) state.skins = fallbackSkins.slice(0);
 
-        let nextIndex = state.selectedIndex + offset;
+        var nextIndex = state.selectedIndex + offset;
         if (nextIndex < 0) nextIndex = state.skins.length - 1;
         if (nextIndex >= state.skins.length) nextIndex = 0;
 
@@ -102,22 +128,22 @@
         updateSkinDisplay(state.skins[nextIndex]);
     }
 
-    prevSkin.addEventListener('click', () => {
+    prevSkin.addEventListener('click', function () {
         selectSkinOffset(-1);
         emit('HeavyRPG:UI:character:prevSkin', {});
     });
 
-    nextSkin.addEventListener('click', () => {
+    nextSkin.addEventListener('click', function () {
         selectSkinOffset(1);
         emit('HeavyRPG:UI:character:nextSkin', {});
     });
 
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', function (event) {
         event.preventDefault();
         if (state.busy) return;
 
-        const data = formData(form);
-        const selectedSkin = Number(state.selectedSkin);
+        var data = formData(form);
+        var selectedSkin = Number(state.selectedSkin);
         data.firstname = (data.firstname || '').trim();
         data.lastname = (data.lastname || '').trim();
         data.skin = selectedSkin;
@@ -143,15 +169,21 @@
     });
 
     window.HeavyRPGCharacter = {
-        receive(packet) {
-            if (!packet || !packet.name) return;
-            const { name, detail } = packet;
+        receive: function (nameOrPacket, detailArg) {
+            var name = nameOrPacket;
+            var detail = detailArg || {};
+
+            if (nameOrPacket && typeof nameOrPacket === 'object') {
+                name = nameOrPacket.name;
+                detail = nameOrPacket.detail || {};
+            }
+
+            if (!name) return;
 
             if (name === 'creator:show') {
                 state.skins = normalizeSkins(detail.skins, detail.defaultSkin);
-                const defaultSkin = Number(detail.defaultSkin || state.skins[0]);
                 setBusy(false);
-                updateSkinDisplay(defaultSkin);
+                updateSkinDisplay(Number(detail.defaultSkin || state.skins[0] || 46));
                 setStatus('Wybierz skin i nadaj postaci imie oraz nazwisko.', 'muted');
             }
 
@@ -169,4 +201,6 @@
             }
         }
     };
-})();
+
+    updateSkinDisplay(state.selectedSkin);
+}());
