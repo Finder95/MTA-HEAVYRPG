@@ -58,6 +58,10 @@
         return true;
     }
 
+    function isFiniteNumber(value) {
+        return typeof value === 'number' && isFinite(value);
+    }
+
     function normalizeSkins(value, fallback) {
         let list = [];
         if (Array.isArray(value)) {
@@ -68,8 +72,8 @@
                 .map((key) => value[key]);
         }
 
-        list = list.map((skin) => Number(skin)).filter((skin) => Number.isFinite(skin) && skin >= 0);
-        if (!list.length) list = [Number(fallback) || 46];
+        list = list.map((skin) => Number(skin)).filter((skin) => isFiniteNumber(skin) && skin >= 0);
+        if (!list.length) list = [isFiniteNumber(Number(fallback)) ? Number(fallback) : 46];
         return list;
     }
 
@@ -78,30 +82,52 @@
     }
 
     function updateSkinDisplay(skin) {
-        state.selectedSkin = Number(skin) || state.selectedSkin || 0;
+        const numericSkin = Number(skin);
+        if (!isFiniteNumber(numericSkin)) return;
+
+        state.selectedSkin = numericSkin;
         const foundIndex = state.skins.findIndex((item) => Number(item) === state.selectedSkin);
         if (foundIndex >= 0) state.selectedIndex = foundIndex;
         skinId.textContent = formatSkin(state.selectedSkin);
     }
 
-    prevSkin.addEventListener('click', () => emit('HeavyRPG:UI:character:prevSkin', {}));
-    nextSkin.addEventListener('click', () => emit('HeavyRPG:UI:character:nextSkin', {}));
+    function selectSkinOffset(offset) {
+        if (state.busy || !state.skins.length) return;
+
+        let nextIndex = state.selectedIndex + offset;
+        if (nextIndex < 0) nextIndex = state.skins.length - 1;
+        if (nextIndex >= state.skins.length) nextIndex = 0;
+
+        state.selectedIndex = nextIndex;
+        updateSkinDisplay(state.skins[nextIndex]);
+    }
+
+    prevSkin.addEventListener('click', () => {
+        selectSkinOffset(-1);
+        emit('HeavyRPG:UI:character:prevSkin', {});
+    });
+
+    nextSkin.addEventListener('click', () => {
+        selectSkinOffset(1);
+        emit('HeavyRPG:UI:character:nextSkin', {});
+    });
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         if (state.busy) return;
 
         const data = formData(form);
+        const selectedSkin = Number(state.selectedSkin);
         data.firstname = (data.firstname || '').trim();
         data.lastname = (data.lastname || '').trim();
-        data.skin = state.selectedSkin;
+        data.skin = selectedSkin;
 
         if (data.firstname.length < 3 || data.lastname.length < 3) {
             setStatus('Imie i nazwisko musza miec minimum 3 litery.', 'error');
             return;
         }
 
-        if (!Number.isFinite(Number(data.skin)) || Number(data.skin) <= 0) {
+        if (!isFiniteNumber(selectedSkin)) {
             setStatus('Wybierz poprawny skin postaci.', 'error');
             return;
         }
