@@ -12,6 +12,7 @@ HRP.ClientCharacter = HRP.ClientCharacter or {
     oldHour = nil,
     oldMinute = nil,
     oldWeather = nil,
+    oldChatVisible = nil,
     sx = 0,
     sy = 0,
     x = 0,
@@ -25,6 +26,7 @@ HRP.ClientCharacter = HRP.ClientCharacter or {
 }
 
 local Creator = HRP.ClientCharacter
+local chatKeys = { t = true, y = true, u = true, f6 = true }
 
 local function decodePayload(jsonPayload)
     if type(jsonPayload) ~= "string" then return {} end
@@ -102,9 +104,14 @@ local function applyCreatorEnvironment()
         Creator.oldWeather = getWeather()
     end
 
+    if isChatVisible then
+        Creator.oldChatVisible = isChatVisible()
+    end
+
     Creator.envApplied = true
     setTime(12, 0)
     if setWeather then setWeather(0) end
+    if showChat then showChat(false) end
     showPlayerHudComponent("radar", false)
     showPlayerHudComponent("area_name", false)
     showPlayerHudComponent("vehicle_name", false)
@@ -119,6 +126,7 @@ local function restoreCreatorEnvironment()
     if not Creator.envApplied then return end
 
     Creator.envApplied = false
+    if showChat then showChat(Creator.oldChatVisible ~= false) end
     showPlayerHudComponent("radar", true)
     showPlayerHudComponent("area_name", true)
     showPlayerHudComponent("vehicle_name", true)
@@ -139,6 +147,7 @@ local function restoreCreatorEnvironment()
     Creator.oldHour = nil
     Creator.oldMinute = nil
     Creator.oldWeather = nil
+    Creator.oldChatVisible = nil
 end
 
 local function createPreviewPed(skin)
@@ -177,6 +186,10 @@ local function cursorClick(button, state, absX, absY)
     if button ~= "left" and button ~= "right" and button ~= "middle" then return end
     if not isInsidePanel(absX, absY) then return end
 
+    if state == "down" then
+        focusBrowser(Creator.browser)
+    end
+
     local browserX, browserY = toBrowserPoint(absX, absY)
     injectBrowserMouseMove(Creator.browser, browserX, browserY)
     if state == "down" then
@@ -192,6 +205,13 @@ local function mouseWheel(key)
 
     local delta = key == "mouse_wheel_up" and 1 or -1
     injectBrowserMouseWheel(Creator.browser, delta, 0)
+end
+
+local function suppressCreatorGameKeys(button, press)
+    if not Creator.visible or not press then return end
+    if chatKeys[tostring(button or ""):lower()] then
+        cancelEvent()
+    end
 end
 
 local function call(functionName, payload)
@@ -280,6 +300,7 @@ local function setVisible(state)
         addEventHandler("onClientRender", root, renderCreator)
         addEventHandler("onClientCursorMove", root, cursorMove)
         addEventHandler("onClientClick", root, cursorClick)
+        addEventHandler("onClientKey", root, suppressCreatorGameKeys)
         bindKey("mouse_wheel_up", "down", mouseWheel)
         bindKey("mouse_wheel_down", "down", mouseWheel)
         bindKey("arrow_l", "down", previewPreviousSkin)
@@ -288,6 +309,7 @@ local function setVisible(state)
         removeEventHandler("onClientRender", root, renderCreator)
         removeEventHandler("onClientCursorMove", root, cursorMove)
         removeEventHandler("onClientClick", root, cursorClick)
+        removeEventHandler("onClientKey", root, suppressCreatorGameKeys)
         unbindKey("mouse_wheel_up", "down", mouseWheel)
         unbindKey("mouse_wheel_down", "down", mouseWheel)
         unbindKey("arrow_l", "down", previewPreviousSkin)
@@ -361,7 +383,15 @@ end)
 addEvent("HeavyRPG:UI:character:create", true)
 addEventHandler("HeavyRPG:UI:character:create", root, function(jsonPayload)
     local payload = decodePayload(jsonPayload)
-    triggerServerEvent("HeavyRPG:Character:create", resourceRoot, payload)
+    if not payload.firstname or not payload.lastname then
+        emit("creator:response", { ok = false, message = "Niepoprawne dane formularza. Sprobuj ponownie." })
+        return
+    end
+
+    local sent = triggerServerEvent("HeavyRPG:Character:create", resourceRoot, payload)
+    if sent == false then
+        emit("creator:response", { ok = false, message = "Nie udalo sie wyslac danych do serwera." })
+    end
 end)
 
 addEvent("HeavyRPG:Character:showCreator", true)
