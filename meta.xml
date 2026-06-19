@@ -1,0 +1,43 @@
+<meta>
+    <info author="OpenAI" name="HeavyRPG" description="Modularny gamemode RPG z zaawansowanym logowaniem/rejestracja CEF + SQLite" type="gamemode" version="0.1.0" />
+
+    <!-- Shared -->
+    <script src="shared/config.lua" type="shared" />
+    <script src="shared/enums.lua" type="shared" />
+    <script src="shared/utils.lua" type="shared" />
+
+    <!-- Server core -->
+    <script src="server/core/logger.lua" type="server" />
+    <script src="server/core/database.lua" type="server" />
+    <script src="server/core/security.lua" type="server" />
+    <script src="server/core/module_loader.lua" type="server" />
+
+    <!-- Server modules -->
+    <script src="server/modules/auth/validators.lua" type="server" />
+    <script src="server/modules/auth/repository.lua" type="server" />
+    <script src="server/modules/auth/session.lua" type="server" />
+    <script src="server/modules/auth/main.lua" type="server" />
+    <script src="server/modules/spawn/main.lua" type="server" />
+
+    <!-- Server bootstrap must be loaded after modules -->
+    <script src="server/core/boot.lua" type="server" />
+
+    <!-- Client core -->
+    <script src="client/core/local_storage.lua" type="client" />
+    <script src="client/core/browser.lua" type="client" />
+    <script src="client/modules/auth/main.lua" type="client" />
+    <script src="client/core/boot.lua" type="client" />
+
+    <!-- CEF files -->
+    <file src="html/auth/index.html" />
+    <file src="html/auth/style.css" />
+    <file src="html/auth/app.js" />
+
+    <!-- SQLite folder placeholder -->
+    <file src="data/.gitkeep" />
+
+    <!-- Useful server exports for future RPG modules -->
+    <export function="isPlayerAuthenticated" type="server" />
+    <export function="getPlayerAccountId" type="server" />
+    <export function="getPlayerAccountData" type="server" />
+</meta>
