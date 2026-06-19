@@ -138,7 +138,8 @@ local function tickPlayer(player, state)
     local regen = cfg.regeneration or {}
     local multiplier = 1
     local speed = movementSpeed(player)
-    local inVehicle = getPedOccupiedVehicle(player) ~= false
+    local vehicle = getPedOccupiedVehicle(player)
+    local inVehicle = vehicle and true or false
 
     if speed > 0.12 and not inVehicle then multiplier = multiplier * (cfg.sprintMultiplier or 1.6) end
     if inVehicle then multiplier = multiplier * (cfg.vehicleEnergyMultiplier or 0.55) end
