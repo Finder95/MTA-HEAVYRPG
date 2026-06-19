@@ -19,6 +19,17 @@
     var prevSkin = $('#prevSkin');
     var nextSkin = $('#nextSkin');
 
+    function isArray(value) {
+        return Object.prototype.toString.call(value) === '[object Array]';
+    }
+
+    function unwrapMtaJson(value) {
+        if (isArray(value) && value.length === 1 && value[0] && typeof value[0] === 'object') {
+            return value[0];
+        }
+        return value;
+    }
+
     function setStatus(message, type) {
         status.textContent = message || '';
         status.className = 'status ' + (type || 'muted');
@@ -70,7 +81,9 @@
         var list = [];
         var key;
 
-        if (Object.prototype.toString.call(value) === '[object Array]') {
+        value = unwrapMtaJson(value);
+
+        if (isArray(value)) {
             list = value;
         } else if (value && typeof value === 'object') {
             var keys = Object.keys(value).sort(function (a, b) { return Number(a) - Number(b); });
@@ -170,12 +183,13 @@
 
     window.HeavyRPGCharacter = {
         receive: function (nameOrPacket, detailArg) {
-            var name = nameOrPacket;
-            var detail = detailArg || {};
+            var packet = unwrapMtaJson(nameOrPacket);
+            var name = packet;
+            var detail = unwrapMtaJson(detailArg || {});
 
-            if (nameOrPacket && typeof nameOrPacket === 'object') {
-                name = nameOrPacket.name;
-                detail = nameOrPacket.detail || {};
+            if (packet && typeof packet === 'object') {
+                name = packet.name;
+                detail = unwrapMtaJson(packet.detail || {});
             }
 
             if (!name) return;
