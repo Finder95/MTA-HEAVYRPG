@@ -18,7 +18,7 @@ HRP.Config = {
     },
 
     auth = {
-        bcryptCost = 12,
+        bcryptCost = 10,
         usernameMin = 3,
         usernameMax = 24,
         passwordMin = 8,
