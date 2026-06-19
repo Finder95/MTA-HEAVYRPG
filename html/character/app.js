@@ -49,6 +49,21 @@
         return true;
     }
 
+    function normalizeSkins(value, fallback) {
+        let list = [];
+        if (Array.isArray(value)) {
+            list = value;
+        } else if (value && typeof value === 'object') {
+            list = Object.keys(value)
+                .sort((a, b) => Number(a) - Number(b))
+                .map((key) => value[key]);
+        }
+
+        list = list.map((skin) => Number(skin)).filter((skin) => Number.isFinite(skin) && skin >= 0);
+        if (!list.length) list = [Number(fallback) || 46];
+        return list;
+    }
+
     function formatSkin(value) {
         return String(value || 0).padStart(3, '0');
     }
@@ -94,7 +109,7 @@
             const { name, detail } = packet;
 
             if (name === 'creator:show') {
-                state.skins = Array.isArray(detail.skins) && detail.skins.length ? detail.skins : [detail.defaultSkin || 46];
+                state.skins = normalizeSkins(detail.skins, detail.defaultSkin);
                 const defaultSkin = Number(detail.defaultSkin || state.skins[0]);
                 const defaultIndex = state.skins.findIndex((skin) => Number(skin) === defaultSkin);
                 setBusy(false);
