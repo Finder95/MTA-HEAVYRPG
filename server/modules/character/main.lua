@@ -7,6 +7,11 @@ HRP.Character.Repository = HRP.Character.Repository or {}
 local Character = HRP.Character
 local Repo = Character.Repository
 
+local function sendCharacterResponse(player, ok, message, character)
+    if not isElement(player) then return end
+    triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, ok == true, message, character or {})
+end
+
 local function isAllowedSkin(skin)
     skin = tonumber(skin)
     if not skin then return false end
@@ -75,12 +80,16 @@ local function publicCharacter(row)
 end
 
 function Repo.findByAccountId(accountId, callback)
-    HRP.DB.query([[SELECT * FROM characters
+    local started = HRP.DB.query([[SELECT * FROM characters
         WHERE account_id = ?
         ORDER BY id ASC
         LIMIT 1]], { tonumber(accountId) or 0 }, function(rows)
         callback(rows and rows[1] or nil)
     end)
+
+    if started == false then
+        callback(nil)
+    end
 end
 
 function Repo.create(accountId, payload, callback)
@@ -138,39 +147,41 @@ addEventHandler("HeavyRPG:Character:create", resourceRoot, function(payload)
 
     local accountId = HRP.Auth.Session.getAccountId(player)
     if not accountId then
-        triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, false, "Najpierw musisz sie zalogowac.")
+        sendCharacterResponse(player, false, "Najpierw musisz sie zalogowac.")
         return
     end
 
     local allowed, rateReason = HRP.Security.checkRateLimit(player, "character")
     if not allowed then
-        triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, false, rateReason)
+        sendCharacterResponse(player, false, rateReason)
         return
     end
 
     local valid, reason, data = validatePayload(payload)
     if not valid then
-        triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, false, reason)
+        sendCharacterResponse(player, false, reason)
         return
     end
 
     Repo.findByAccountId(accountId, function(existing)
         if not isElement(player) then return end
         if existing then
+            local public = publicCharacter(existing)
+            sendCharacterResponse(player, true, "Postac juz istnieje. Wchodzisz do gry.", public)
             triggerClientEvent(player, "HeavyRPG:Character:hideCreator", resourceRoot)
-            triggerEvent("HeavyRPG:Character:onPlayerReady", resourceRoot, player, publicCharacter(existing))
+            triggerEvent("HeavyRPG:Character:onPlayerReady", resourceRoot, player, public)
             return
         end
 
         Repo.create(accountId, data, function(created, character)
             if not isElement(player) then return end
             if not created or not character then
-                triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, false, "Nie udalo sie utworzyc postaci.")
+                sendCharacterResponse(player, false, "Nie udalo sie utworzyc postaci.")
                 return
             end
 
             local public = publicCharacter(character)
-            triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, true, "Postac utworzona.", public)
+            sendCharacterResponse(player, true, "Postac utworzona.", public)
             triggerClientEvent(player, "HeavyRPG:Character:hideCreator", resourceRoot)
             triggerEvent("HeavyRPG:Character:onPlayerReady", resourceRoot, player, public)
         end)
