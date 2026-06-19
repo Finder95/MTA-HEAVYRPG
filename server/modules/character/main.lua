@@ -180,7 +180,10 @@ end
 local function publicCharacterList(rows)
     local list = {}
     for _, row in ipairs(rows or {}) do
-        list[#list + 1] = publicCharacter(row)
+        local character = publicCharacter(row)
+        if character and character.id then
+            list[#list + 1] = character
+        end
     end
     return list
 end
@@ -199,9 +202,11 @@ function Repo.findByAccountId(accountId, callback)
 end
 
 function Repo.listByAccountId(accountId, callback)
+    local maxSlots = math.max(1, tonumber(HRP.Config.character.maxSlots) or 3)
     local started = HRP.DB.query([[SELECT * FROM characters
         WHERE account_id = ?
-        ORDER BY updated_at DESC, id ASC]], { tonumber(accountId) or 0 }, function(rows)
+        ORDER BY updated_at DESC, id ASC
+        LIMIT ?]], { tonumber(accountId) or 0, maxSlots }, function(rows)
         callback(rows or {})
     end)
 
@@ -302,12 +307,15 @@ function Character.showCreator(player, account)
 
     Repo.listByAccountId(accountId, function(rows)
         if not isElement(player) then return end
+        local maxSlots = math.max(1, tonumber(HRP.Config.character.maxSlots) or 3)
         local characters = publicCharacterList(rows)
+        local slotsUsed = math.min(#characters, maxSlots)
         triggerClientEvent(player, "HeavyRPG:Character:showCreator", resourceRoot, {
             account = account or HRP.Auth.Session.getAccount(player),
             characters = characters,
-            maxSlots = HRP.Config.character.maxSlots or 3,
-            canCreate = #characters < (HRP.Config.character.maxSlots or 3),
+            slotsUsed = slotsUsed,
+            maxSlots = maxSlots,
+            canCreate = slotsUsed < maxSlots,
             skins = HRP.Config.character.skins,
             defaultSkin = HRP.Config.character.defaultSkin,
             genders = HRP.Config.character.genders,
