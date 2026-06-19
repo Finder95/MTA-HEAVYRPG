@@ -8,38 +8,16 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div class="bg">
-        <div class="orb orb-a"></div>
-        <div class="orb orb-b"></div>
-        <div class="grid"></div>
-    </div>
-
     <main class="shell">
-        <section class="brand">
-            <div class="badge">HRPG</div>
-            <h1 id="serverName">HeavyRPG</h1>
-            <p>Zaawansowany system kont RPG z bezpiecznym bcrypt, sesjami i SQLite.</p>
-
-            <div class="features">
-                <article>
-                    <span>01</span>
-                    <strong>Modular Core</strong>
-                    <p>Auth, DB, security i spawn jako osobne warstwy.</p>
-                </article>
-                <article>
-                    <span>02</span>
-                    <strong>CEF Interface</strong>
-                    <p>Responsywny panel HTML/CSS/JS gotowy pod rozbudowe.</p>
-                </article>
-                <article>
-                    <span>03</span>
-                    <strong>SQLite Save</strong>
-                    <p>Konta, sesje i audit log zapisane lokalnie w resource.</p>
-                </article>
-            </div>
-        </section>
-
         <section class="card" id="authCard">
+            <header class="panel-head">
+                <div>
+                    <span class="eyebrow">Los Santos Roleplay</span>
+                    <h1 id="serverName">HeavyRPG</h1>
+                </div>
+                <div class="mark">HRP</div>
+            </header>
+
             <div class="tabs">
                 <button class="tab active" data-tab="login">Logowanie</button>
                 <button class="tab" data-tab="register">Rejestracja</button>
@@ -60,10 +38,10 @@
 
                 <label class="check">
                     <input name="remember" type="checkbox" checked />
-                    <span>Zapamietaj sesje na tym komputerze</span>
+                    <span>Zapamietaj sesje</span>
                 </label>
 
-                <button type="submit" class="primary">Wejdz do gry</button>
+                <button type="submit" class="primary">Wejdz do miasta</button>
             </form>
 
             <form class="form" id="registerForm">
@@ -84,11 +62,16 @@
 
                 <label class="check">
                     <input name="remember" type="checkbox" checked />
-                    <span>Zaloguj i zapamietaj sesje</span>
+                    <span>Zaloguj po rejestracji</span>
                 </label>
 
                 <button type="submit" class="primary">Stworz konto</button>
             </form>
+
+            <footer class="panel-foot">
+                <span>Secure account core</span>
+                <span>SQLite save</span>
+            </footer>
         </section>
     </main>
 
