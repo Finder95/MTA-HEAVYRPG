@@ -209,4 +209,16 @@ addEventHandler("onResourceStop", resourceRoot, function()
     end
 end)
 
+function getPlayerNeeds(player)
+    return Survival.get(player)
+end
+
+function setPlayerNeed(player, key, value, saveNow)
+    return Survival.set(player, key, value, saveNow)
+end
+
+function addPlayerNeed(player, key, amount, saveNow)
+    return Survival.add(player, key, amount, saveNow)
+end
+
 HRP.Modules.register("survival", module)
