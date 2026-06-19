@@ -44,18 +44,21 @@ function Repo.createAccount(username, email, passwordHashValue, player, callback
     local normalized = HRP.Utils.lower(username)
     local spawnMoney = HRP.Config.auth.spawn.startingMoney or 500
 
-    HRP.DB.query([[INSERT INTO accounts
+    local created = HRP.DB.exec([[INSERT INTO accounts
         (username, normalized_username, email, password_hash, serial, last_serial, last_ip, cash, created_at, updated_at)
         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
             HRP.Utils.trim(username), normalized, HRP.Utils.lower(email), passwordHashValue,
             serial, serial, ip, spawnMoney, now, now
-        }, function(result, affectedRows, lastInsertId)
-            if affectedRows and affectedRows > 0 then
-                callback(true, tonumber(lastInsertId))
-            else
-                callback(false, nil)
-            end
-        end)
+        })
+
+    if not created then
+        callback(false, nil)
+        return
+    end
+
+    Repo.findByIdentifier(username, function(account)
+        callback(account ~= nil, account and tonumber(account.id) or nil)
+    end)
 end
 
 function Repo.updateSuccessfulLogin(accountId, player)
