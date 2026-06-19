@@ -8,6 +8,7 @@
     };
 
     const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector, root = document) => Array.prototype.slice.call(root.querySelectorAll(selector));
     const status = $('#status');
     const form = $('#characterForm');
     const skinId = $('#skinId');
@@ -28,7 +29,7 @@
 
     function setBusy(value) {
         state.busy = value;
-        [...document.querySelectorAll('button, input')].forEach((el) => { el.disabled = value; });
+        $$('button, input').forEach((el) => { el.disabled = value; });
         if (!value) clearResponseTimer();
     }
 
@@ -36,8 +37,16 @@
         clearResponseTimer();
         state.responseTimer = setTimeout(() => {
             setBusy(false);
-            setStatus('Serwer nie odpowiedzial. Sprobuj ponownie albo sprawdz konsole.', 'error');
+            setStatus('Serwer nie odpowiedzial. Sprobuj ponownie albo sprawdz konsole serwera.', 'error');
         }, 15000);
+    }
+
+    function formData(formElement) {
+        const data = {};
+        new FormData(formElement).forEach((value, key) => {
+            data[key] = value;
+        });
+        return data;
     }
 
     function emit(name, payload) {
@@ -82,7 +91,7 @@
         event.preventDefault();
         if (state.busy) return;
 
-        const data = Object.fromEntries(new FormData(form).entries());
+        const data = formData(form);
         data.firstname = (data.firstname || '').trim();
         data.lastname = (data.lastname || '').trim();
         data.skin = state.selectedSkin;
@@ -92,12 +101,18 @@
             return;
         }
 
+        if (!Number.isFinite(Number(data.skin)) || Number(data.skin) <= 0) {
+            setStatus('Wybierz poprawny skin postaci.', 'error');
+            return;
+        }
+
         setBusy(true);
         setStatus('Tworze postac...', 'muted');
         if (emit('HeavyRPG:UI:character:create', data)) {
             waitForResponse();
         } else {
             setBusy(false);
+            setStatus('Nie udalo sie polaczyc panelu z gra.', 'error');
         }
     });
 
