@@ -214,22 +214,12 @@ local function suppressCreatorGameKeys(button, press)
     end
 end
 
-local function call(functionName, payload)
+local function emit(name, detail)
     if not Creator.browser or not Creator.ready then return false end
 
-    local script
-    if payload == nil then
-        script = tostring(functionName) .. "();"
-    else
-        local json = toJSON(payload, true) or "{}"
-        script = tostring(functionName) .. "(" .. json .. ");"
-    end
-
+    local json = toJSON(detail or {}, true) or "{}"
+    local script = "window.HeavyRPGCharacter && window.HeavyRPGCharacter.receive(" .. HRP.Utils.jsQuote(name) .. ", " .. json .. ");"
     return executeBrowserJavascript(Creator.browser, script)
-end
-
-local function emit(name, detail)
-    return call("window.HeavyRPGCharacter && window.HeavyRPGCharacter.receive", { name = name, detail = detail or {} })
 end
 
 local function setPreviewSkin(skin)
