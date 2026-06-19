@@ -154,47 +154,37 @@ local function handleRegister(player, payload)
     local email = generatedEmail(username)
     local password = tostring(payload.password)
     local remember = HRP.Utils.bool(payload.remember)
-    local serial = getPlayerSerial(player)
 
-    HRP.Auth.Repository.countBySerial(serial, function(count)
+    HRP.Auth.Repository.usernameOrEmailExists(username, email, function(existing)
         if not isElement(player) then return end
-        if count >= HRP.Config.auth.maxAccountsPerSerial then
-            HRP.Security.audit(nil, username, "register", false, player, "SERIAL_LIMIT")
-            sendAuth(player, "register", false, HRP.AuthCodes.SERIAL_LIMIT, "Osiagnieto limit kont dla tego serialu.")
+        if existing then
+            HRP.Security.audit(nil, username, "register", false, player, "ACCOUNT_EXISTS")
+            sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Ten login jest juz zajety.")
             return
         end
 
-        HRP.Auth.Repository.usernameOrEmailExists(username, email, function(existing)
+        passwordHash(password, "bcrypt", { cost = HRP.Config.auth.bcryptCost }, function(hashedPassword)
             if not isElement(player) then return end
-            if existing then
-                HRP.Security.audit(nil, username, "register", false, player, "ACCOUNT_EXISTS")
-                sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Ten login jest juz zajety.")
+            if not hashedPassword then
+                sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Nie udalo sie zabezpieczyc hasla.")
                 return
             end
 
-            passwordHash(password, "bcrypt", { cost = HRP.Config.auth.bcryptCost }, function(hashedPassword)
+            HRP.Auth.Repository.createAccount(username, email, hashedPassword, player, function(created, accountId)
                 if not isElement(player) then return end
-                if not hashedPassword then
-                    sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Nie udalo sie zabezpieczyc hasla.")
+                if not created then
+                    HRP.Security.audit(nil, username, "register", false, player, "INSERT_FAILED")
+                    sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Nie udalo sie utworzyc konta. Mozliwe, ze login jest zajety.")
                     return
                 end
 
-                HRP.Auth.Repository.createAccount(username, email, hashedPassword, player, function(created, accountId)
-                    if not isElement(player) then return end
-                    if not created then
-                        HRP.Security.audit(nil, username, "register", false, player, "INSERT_FAILED")
-                        sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Nie udalo sie utworzyc konta. Mozliwe, ze login jest zajety.")
+                HRP.Security.audit(accountId, username, "register", true, player, "OK")
+                HRP.Auth.Repository.findById(accountId, function(account)
+                    if not isElement(player) or not account then
+                        sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Konto utworzono, ale nie udalo sie go zalogowac.")
                         return
                     end
-
-                    HRP.Security.audit(accountId, username, "register", true, player, "OK")
-                    HRP.Auth.Repository.findById(accountId, function(account)
-                        if not isElement(player) or not account then
-                            sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Konto utworzono, ale nie udalo sie go zalogowac.")
-                            return
-                        end
-                        finishLogin(player, account, remember, "register")
-                    end)
+                    finishLogin(player, account, remember, "register")
                 end)
             end)
         end)
