@@ -8,6 +8,9 @@ HRP.ClientCharacter = HRP.ClientCharacter or {
     pendingPayload = nil,
     previewPed = nil,
     previewConfig = nil,
+    envApplied = false,
+    oldHour = nil,
+    oldMinute = nil,
     sx = 0,
     sy = 0,
     x = 0,
@@ -85,6 +88,46 @@ local function destroyPreviewPed()
         destroyElement(Creator.previewPed)
     end
     Creator.previewPed = nil
+end
+
+local function applyCreatorEnvironment()
+    if Creator.envApplied then return end
+
+    if getTime then
+        Creator.oldHour, Creator.oldMinute = getTime()
+    end
+
+    Creator.envApplied = true
+    setTime(12, 0)
+    showPlayerHudComponent("radar", false)
+    showPlayerHudComponent("area_name", false)
+    showPlayerHudComponent("vehicle_name", false)
+
+    if setSkyGradient then setSkyGradient(8, 10, 14, 30, 34, 40) end
+    if setCloudsEnabled then setCloudsEnabled(false) end
+    if setFarClipDistance then setFarClipDistance(55) end
+    if setFogDistance then setFogDistance(18) end
+end
+
+local function restoreCreatorEnvironment()
+    if not Creator.envApplied then return end
+
+    Creator.envApplied = false
+    showPlayerHudComponent("radar", true)
+    showPlayerHudComponent("area_name", true)
+    showPlayerHudComponent("vehicle_name", true)
+
+    if Creator.oldHour and Creator.oldMinute and setTime then
+        setTime(Creator.oldHour, Creator.oldMinute)
+    end
+
+    if resetSkyGradient then resetSkyGradient() end
+    if setCloudsEnabled then setCloudsEnabled(true) end
+    if resetFarClipDistance then resetFarClipDistance() end
+    if resetFogDistance then resetFogDistance() end
+
+    Creator.oldHour = nil
+    Creator.oldMinute = nil
 end
 
 local function createPreviewPed(skin)
@@ -172,6 +215,7 @@ local function setupPreview(payload)
     Creator.skins = normalizeSkins(payload.skins or HRP.Config.character.skins, skin)
     Creator.selectedSkin = skin
 
+    applyCreatorEnvironment()
     createPreviewPed(skin)
 
     setElementInterior(localPlayer, preview.interior or 0)
@@ -286,6 +330,7 @@ end
 local function hideCreator()
     setVisible(false)
     destroyPreviewPed()
+    restoreCreatorEnvironment()
     Creator.pendingPayload = nil
     Creator.previewConfig = nil
 end
