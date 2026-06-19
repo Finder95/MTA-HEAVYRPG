@@ -7,16 +7,16 @@ HRP.ClientHUD = HRP.ClientHUD or {
     money = { cash = 0, bank = 0 },
     sx = 0,
     sy = 0,
-    pulse = 0,
     lastSync = 0
 }
 
 local HUD = HRP.ClientHUD
 local hiddenComponents = { "ammo", "area_name", "armour", "breath", "clock", "health", "money", "radar", "vehicle_name", "weapon" }
 
-local function rgba(color, alpha)
-    color = color or { 255, 255, 255 }
-    return tocolor(color[1] or 255, color[2] or 255, color[3] or 255, alpha or color[4] or 255)
+local function color(name, alpha)
+    local cfg = HRP.Config.hud or {}
+    local value = cfg[name] or { 255, 255, 255 }
+    return tocolor(value[1] or 255, value[2] or 255, value[3] or 255, alpha or value[4] or 255)
 end
 
 local function clamp(value)
@@ -39,53 +39,23 @@ local function money(value)
     return sign .. "$" .. text .. out
 end
 
-local function drawShadowText(text, x, y, w, h, color, scale, font, ax, ay)
-    dxDrawText(text, x + 1, y + 1, w + 1, h + 1, tocolor(0, 0, 0, 210), scale or 1, font or "default-bold", ax or "left", ay or "top", false, false, true)
-    dxDrawText(text, x, y, w, h, color, scale or 1, font or "default-bold", ax or "left", ay or "top", false, false, true)
+local function shadowText(text, x, y, w, h, textColor, scale, font, alignX, alignY)
+    dxDrawText(text, x + 1, y + 1, w + 1, h + 1, tocolor(0, 0, 0, 190), scale or 1, font or "default-bold", alignX or "left", alignY or "top", false, false, true)
+    dxDrawText(text, x, y, w, h, textColor, scale or 1, font or "default-bold", alignX or "left", alignY or "top", false, false, true)
 end
 
-local function drawPanel(x, y, w, h, title)
-    local cfg = HRP.Config.hud or {}
-    local accent = rgba(cfg.accent, 230)
-    local bg = cfg.background or { 5, 12, 10, 205 }
-
-    dxDrawRectangle(x, y, w, h, tocolor(bg[1] or 5, bg[2] or 12, bg[3] or 10, bg[4] or 205), true)
-    dxDrawLine(x, y, x + w, y, accent, 1, true)
-    dxDrawLine(x, y + h, x + w, y + h, accent, 1, true)
-    dxDrawLine(x, y, x, y + h, accent, 1, true)
-    dxDrawLine(x + w, y, x + w, y + h, accent, 1, true)
-
-    dxDrawRectangle(x + 3, y + 3, w - 6, 18, tocolor(14, 36, 27, 190), true)
-    drawShadowText(title, x + 8, y + 4, x + w - 8, y + 20, accent, 0.82, "default-bold")
-end
-
-local function drawRetroBar(label, value, x, y, w, h, inverse)
-    local cfg = HRP.Config.hud or {}
+local function drawSoftBar(label, value, x, y, w, h, barColorName, inverse)
     value = clamp(value)
-    local fill = inverse and (100 - value) or value
-    local color = cfg.accent
+    local fillValue = inverse and (100 - value) or value
+    local danger = (not inverse and value <= 18) or (inverse and value >= 82)
+    local fillColor = danger and color("danger", 225) or color(barColorName, 218)
 
-    if inverse then
-        color = value >= 85 and cfg.danger or (value >= 65 and cfg.warning or cfg.accent)
-    else
-        color = value <= 15 and cfg.danger or (value <= 35 and cfg.warning or cfg.accent)
-    end
+    dxDrawRectangle(x, y, w, h, color("barBack", 165), true)
+    dxDrawRectangle(x, y, math.max(2, w * (fillValue / 100)), h, fillColor, true)
+    dxDrawRectangle(x, y + h - 1, w, 1, tocolor(0, 0, 0, 120), true)
 
-    dxDrawRectangle(x, y, w, h, tocolor(0, 0, 0, 145), true)
-    dxDrawRectangle(x + 1, y + 1, math.max(0, (w - 2) * (fill / 100)), h - 2, rgba(color, 220), true)
-    dxDrawLine(x, y, x + w, y, rgba(cfg.accent, 120), 1, true)
-    dxDrawLine(x, y + h, x + w, y + h, rgba(cfg.accent, 70), 1, true)
-
-    drawShadowText(label, x, y - 14, x + w, y, rgba(cfg.accent, 230), 0.72, "default-bold")
-    drawShadowText(tostring(math.floor(value)) .. "%", x, y - 14, x + w, y, rgba(color, 245), 0.72, "default-bold", "right")
-end
-
-local function drawScanlines(x, y, w, h)
-    local cfg = HRP.Config.hud or {}
-    local alpha = cfg.scanlineAlpha or 25
-    for line = y + 2, y + h - 2, 4 do
-        dxDrawLine(x + 2, line, x + w - 2, line, tocolor(255, 255, 255, alpha), 1, true)
-    end
+    shadowText(label, x, y - 15, x + w, y, color("muted", 215), 0.68, "default-bold")
+    shadowText(tostring(math.floor(value)), x, y - 15, x + w, y, danger and color("danger", 235) or color("text", 220), 0.68, "default-bold", "right")
 end
 
 local function getVehicleSpeed()
@@ -95,61 +65,43 @@ local function getVehicleSpeed()
     return math.floor(((vx * vx + vy * vy + vz * vz) ^ 0.5) * 180)
 end
 
-local function drawCoreVitals(x, y)
-    local cfg = HRP.Config.hud or {}
+local function drawNeedsCluster(x, y)
     local hp = clamp(getElementHealth(localPlayer))
     local armor = clamp(getPedArmor(localPlayer))
+    local gap = 25
+    local w = 176
+    local h = 8
 
-    drawPanel(x, y, 285, 152, "HEAVYRPG // VITAL MONITOR")
-    drawRetroBar("HP", hp, x + 14, y + 40, 257, 12, false)
-    drawRetroBar("ARMOR", armor, x + 14, y + 72, 257, 12, false)
-    drawRetroBar("FOOD", HUD.needs.hunger, x + 14, y + 104, 120, 10, false)
-    drawRetroBar("WATER", HUD.needs.thirst, x + 151, y + 104, 120, 10, false)
-    drawRetroBar("ENERGY", HUD.needs.energy, x + 14, y + 132, 120, 10, false)
-    drawRetroBar("STRESS", HUD.needs.stress, x + 151, y + 132, 120, 10, true)
-    drawScanlines(x, y, 285, 152)
+    dxDrawRectangle(x - 10, y - 22, w + 20, 184, color("background", 96), true)
+    shadowText("stan postaci", x, y - 19, x + w, y - 4, color("text", 205), 0.72, "default-bold")
+
+    drawSoftBar("zdrowie", hp, x, y + 8, w, h, "health", false)
+    drawSoftBar("pancerz", armor, x, y + 8 + gap, w, h, "armor", false)
+    drawSoftBar("glod", HUD.needs.hunger, x, y + 8 + gap * 2, w, h, "hunger", false)
+    drawSoftBar("pragnienie", HUD.needs.thirst, x, y + 8 + gap * 3, w, h, "thirst", false)
+    drawSoftBar("energia", HUD.needs.energy, x, y + 8 + gap * 4, w, h, "energy", false)
+    drawSoftBar("stres", HUD.needs.stress, x, y + 8 + gap * 5, w, h, "stress", true)
 
     if hp <= 20 or HUD.needs.thirst <= 15 or HUD.needs.hunger <= 15 then
-        local flash = 90 + math.abs(math.sin(getTickCount() / 220)) * 120
-        dxDrawRectangle(x, y, 285, 152, tocolor(255, 0, 0, flash * 0.25), true)
-        drawShadowText("CRITICAL", x, y - 22, x + 285, y, rgba(cfg.danger, 230), 0.9, "default-bold", "right")
+        local alpha = 35 + math.abs(math.sin(getTickCount() / 260)) * 55
+        dxDrawRectangle(x - 10, y - 22, w + 20, 184, tocolor(120, 0, 0, alpha), true)
     end
 end
 
-local function drawMoneyPanel(x, y)
-    local cfg = HRP.Config.hud or {}
+local function drawMoneyLine(x, y)
     local speed = getVehicleSpeed()
     local hour, minute = getTime()
     local timeText = string.format("%02d:%02d", hour or 0, minute or 0)
+    local width = 255
+    local line = "gotowka " .. money(HUD.money.cash or getPlayerMoney(localPlayer)) .. "   konto " .. money(HUD.money.bank or 0)
 
-    drawPanel(x, y, 285, speed and 128 or 102, "CITY TERMINAL // FINANCE")
-    drawShadowText("CASH", x + 14, y + 36, x + 110, y + 52, rgba(cfg.accent, 210), 0.75, "default-bold")
-    drawShadowText(money(HUD.money.cash or getPlayerMoney(localPlayer)), x + 96, y + 34, x + 270, y + 54, tocolor(235, 255, 232, 245), 0.95, "default-bold", "right")
-
-    drawShadowText("BANK", x + 14, y + 62, x + 110, y + 78, rgba(cfg.accent, 210), 0.75, "default-bold")
-    drawShadowText(money(HUD.money.bank or 0), x + 96, y + 60, x + 270, y + 80, tocolor(235, 255, 232, 245), 0.95, "default-bold", "right")
-
-    drawShadowText("TIME", x + 14, y + 84, x + 110, y + 100, rgba(cfg.accent, 210), 0.75, "default-bold")
-    drawShadowText(timeText, x + 96, y + 82, x + 270, y + 102, rgba(cfg.warning, 245), 0.95, "default-bold", "right")
+    dxDrawRectangle(x - 10, y - 8, width + 20, speed and 58 or 36, color("background", 86), true)
+    shadowText(line, x, y, x + width, y + 16, color("cash", 230), 0.78, "default-bold", "right")
+    shadowText(timeText, x, y + 17, x + width, y + 33, color("muted", 220), 0.72, "default-bold", "right")
 
     if speed then
-        drawShadowText("SPEED", x + 14, y + 106, x + 110, y + 122, rgba(cfg.accent, 210), 0.75, "default-bold")
-        drawShadowText(tostring(speed) .. " KM/H", x + 96, y + 104, x + 270, y + 124, rgba(cfg.warning, 245), 0.95, "default-bold", "right")
+        shadowText(tostring(speed) .. " km/h", x, y + 36, x + width, y + 52, color("text", 220), 0.78, "default-bold", "right")
     end
-
-    drawScanlines(x, y, 285, speed and 128 or 102)
-end
-
-local function drawMicroStatus(x, y)
-    local cfg = HRP.Config.hud or {}
-    local ping = getPlayerPing(localPlayer)
-    local zone = getZoneName(getElementPosition(localPlayer)) or "LOS SANTOS"
-    local last = math.floor((getTickCount() - (HUD.lastSync or 0)) / 1000)
-
-    drawPanel(x, y, 285, 58, "RADIO STATUS")
-    drawShadowText(zone, x + 12, y + 28, x + 190, y + 44, rgba(cfg.accent, 235), 0.78, "default-bold")
-    drawShadowText("PING " .. tostring(ping) .. " | SYNC " .. tostring(last) .. "s", x + 12, y + 28, x + 270, y + 44, rgba(cfg.warning, 225), 0.72, "default-bold", "right")
-    drawScanlines(x, y, 285, 58)
 end
 
 local function renderHUD()
@@ -157,11 +109,8 @@ local function renderHUD()
     if isPlayerMapVisible() then return end
 
     HUD.sx, HUD.sy = guiGetScreenSize()
-    local margin = 22
-    local rightX = HUD.sx - 285 - margin
-    drawCoreVitals(margin, HUD.sy - 174)
-    drawMoneyPanel(rightX, margin)
-    drawMicroStatus(rightX, margin + 140)
+    drawNeedsCluster(26, HUD.sy - 196)
+    drawMoneyLine(HUD.sx - 285, 28)
 end
 
 local function hideDefaultComponents()
