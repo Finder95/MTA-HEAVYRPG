@@ -176,6 +176,28 @@ function Bank.setBalance(player, value, title)
     return true
 end
 
+function Bank.getRecentTransactions(player, limit, callback)
+    if not isElement(player) then
+        if callback then callback({}) end
+        return false
+    end
+
+    local characterId = getCharacterId(player)
+    if not characterId then
+        if callback then callback({}) end
+        return false
+    end
+
+    limit = math.max(1, math.min(tonumber(limit) or 10, 50))
+    return HRP.DB.query([[SELECT id, type, amount, balance_after, title, target_character_id, meta_json, created_at
+        FROM bank_transactions
+        WHERE character_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?]], { characterId, limit }, function(rows)
+        if callback then callback(rows or {}) end
+    end)
+end
+
 local function attachPlayer(player, character)
     if not isElement(player) then return end
     character = type(character) == "table" and character or {}
@@ -250,6 +272,10 @@ end
 
 function transferPlayerBankMoney(player, target, amount, title)
     return Bank.transfer(player, target, amount, title)
+end
+
+function getPlayerBankTransactions(player, limit, callback)
+    return Bank.getRecentTransactions(player, limit, callback)
 end
 
 HRP.Modules.register("bank", module)
