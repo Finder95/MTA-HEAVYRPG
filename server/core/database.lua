@@ -71,7 +71,17 @@ local schema = {
         account_id INTEGER NOT NULL,
         firstname TEXT NOT NULL,
         lastname TEXT NOT NULL,
+        gender TEXT NOT NULL DEFAULT 'male',
         age INTEGER NOT NULL DEFAULT 18,
+        origin TEXT NOT NULL DEFAULT 'ls_native',
+        archetype TEXT NOT NULL DEFAULT 'worker',
+        strength INTEGER NOT NULL DEFAULT 4,
+        endurance INTEGER NOT NULL DEFAULT 4,
+        agility INTEGER NOT NULL DEFAULT 4,
+        intelligence INTEGER NOT NULL DEFAULT 4,
+        charisma INTEGER NOT NULL DEFAULT 4,
+        focus INTEGER NOT NULL DEFAULT 4,
+        stat_points INTEGER NOT NULL DEFAULT 24,
         cash INTEGER NOT NULL DEFAULT 500,
         bank INTEGER NOT NULL DEFAULT 0,
         skin INTEGER NOT NULL DEFAULT 0,
@@ -81,13 +91,38 @@ local schema = {
         rotation REAL NOT NULL DEFAULT 0,
         interior INTEGER NOT NULL DEFAULT 0,
         dimension INTEGER NOT NULL DEFAULT 0,
+        playtime INTEGER NOT NULL DEFAULT 0,
+        last_played_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
     )]],
 
-    [[CREATE INDEX IF NOT EXISTS idx_characters_account ON characters(account_id)]]
+    [[CREATE INDEX IF NOT EXISTS idx_characters_account ON characters(account_id)]],
+    [[CREATE INDEX IF NOT EXISTS idx_characters_account_updated ON characters(account_id, updated_at)]]
 }
+
+local migrations = {
+    [[ALTER TABLE characters ADD COLUMN gender TEXT NOT NULL DEFAULT 'male']],
+    [[ALTER TABLE characters ADD COLUMN origin TEXT NOT NULL DEFAULT 'ls_native']],
+    [[ALTER TABLE characters ADD COLUMN archetype TEXT NOT NULL DEFAULT 'worker']],
+    [[ALTER TABLE characters ADD COLUMN strength INTEGER NOT NULL DEFAULT 4]],
+    [[ALTER TABLE characters ADD COLUMN endurance INTEGER NOT NULL DEFAULT 4]],
+    [[ALTER TABLE characters ADD COLUMN agility INTEGER NOT NULL DEFAULT 4]],
+    [[ALTER TABLE characters ADD COLUMN intelligence INTEGER NOT NULL DEFAULT 4]],
+    [[ALTER TABLE characters ADD COLUMN charisma INTEGER NOT NULL DEFAULT 4]],
+    [[ALTER TABLE characters ADD COLUMN focus INTEGER NOT NULL DEFAULT 4]],
+    [[ALTER TABLE characters ADD COLUMN stat_points INTEGER NOT NULL DEFAULT 24]],
+    [[ALTER TABLE characters ADD COLUMN playtime INTEGER NOT NULL DEFAULT 0]],
+    [[ALTER TABLE characters ADD COLUMN last_played_at INTEGER]]
+}
+
+local function applyCompatibleMigrations()
+    for _, sql in ipairs(migrations) do
+        -- SQLite has no ADD COLUMN IF NOT EXISTS in older builds. Duplicate-column failures are expected.
+        dbExec(HRP.DB.connection, sql)
+    end
+end
 
 function HRP.DB.connect()
     if HRP.DB.connection and isElement(HRP.DB.connection) then
@@ -109,6 +144,8 @@ function HRP.DB.connect()
             return false
         end
     end
+
+    applyCompatibleMigrations()
 
     if not dbExec(HRP.DB.connection, [[INSERT OR REPLACE INTO schema_meta("key", "value") VALUES(?, ?)]], "schema_version", tostring(cfg.schemaVersion or 1)) then
         HRP.Logger.error("database", "Nie udalo sie zapisac schema_version w schema_meta.")
