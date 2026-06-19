@@ -75,16 +75,8 @@
         skinId.textContent = formatSkin(state.selectedSkin);
     }
 
-    function selectSkin(index) {
-        if (!state.skins.length) return;
-        const count = state.skins.length;
-        state.selectedIndex = ((index % count) + count) % count;
-        updateSkinDisplay(state.skins[state.selectedIndex]);
-        emit('HeavyRPG:UI:character:previewSkin', { skin: state.selectedSkin });
-    }
-
-    prevSkin.addEventListener('click', () => selectSkin(state.selectedIndex - 1));
-    nextSkin.addEventListener('click', () => selectSkin(state.selectedIndex + 1));
+    prevSkin.addEventListener('click', () => emit('HeavyRPG:UI:character:prevSkin', {}));
+    nextSkin.addEventListener('click', () => emit('HeavyRPG:UI:character:nextSkin', {}));
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -117,9 +109,8 @@
             if (name === 'creator:show') {
                 state.skins = normalizeSkins(detail.skins, detail.defaultSkin);
                 const defaultSkin = Number(detail.defaultSkin || state.skins[0]);
-                const defaultIndex = state.skins.findIndex((skin) => Number(skin) === defaultSkin);
                 setBusy(false);
-                selectSkin(defaultIndex >= 0 ? defaultIndex : 0);
+                updateSkinDisplay(defaultSkin);
                 setStatus('Wybierz skin i nadaj postaci imie oraz nazwisko.', 'muted');
             }
 
