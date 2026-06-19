@@ -21,12 +21,6 @@ function Repo.findById(accountId, callback)
     end)
 end
 
-function Repo.countBySerial(serial, callback)
-    HRP.DB.query("SELECT COUNT(*) AS count FROM accounts WHERE serial = ?", { serial }, function(rows)
-        callback(tonumber(rows and rows[1] and rows[1].count) or 0)
-    end)
-end
-
 function Repo.usernameOrEmailExists(username, email, callback)
     local normalized = HRP.Utils.lower(username)
     local normalizedEmail = HRP.Utils.lower(email)
