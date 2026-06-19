@@ -6,8 +6,8 @@ HRP.DB.connection = nil
 
 local schema = {
     [[CREATE TABLE IF NOT EXISTS schema_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
+        "key" TEXT PRIMARY KEY,
+        "value" TEXT NOT NULL
     )]],
 
     [[CREATE TABLE IF NOT EXISTS accounts (
@@ -89,6 +89,12 @@ local schema = {
     [[CREATE INDEX IF NOT EXISTS idx_characters_account ON characters(account_id)]]
 }
 
+local function applyPragma(sql)
+    dbQuery(function(qh)
+        dbPoll(qh, 0)
+    end, HRP.DB.connection, sql)
+end
+
 function HRP.DB.connect()
     if HRP.DB.connection and isElement(HRP.DB.connection) then
         return true
@@ -103,8 +109,8 @@ function HRP.DB.connect()
         return false
     end
 
-    dbExec(HRP.DB.connection, "PRAGMA foreign_keys = ON")
-    dbExec(HRP.DB.connection, "PRAGMA journal_mode = WAL")
+    applyPragma("PRAGMA foreign_keys = ON")
+    applyPragma("PRAGMA journal_mode = WAL")
 
     for _, sql in ipairs(schema) do
         if not dbExec(HRP.DB.connection, sql) then
@@ -113,7 +119,11 @@ function HRP.DB.connect()
         end
     end
 
-    dbExec(HRP.DB.connection, "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)", "schema_version", tostring(cfg.schemaVersion or 1))
+    if not dbExec(HRP.DB.connection, [[INSERT OR REPLACE INTO schema_meta("key", "value") VALUES(?, ?)]], "schema_version", tostring(cfg.schemaVersion or 1)) then
+        HRP.Logger.error("database", "Nie udalo sie zapisac schema_version w schema_meta.")
+        return false
+    end
+
     HRP.Logger.info("database", "SQLite gotowe: " .. cfg.path)
     return true
 end
