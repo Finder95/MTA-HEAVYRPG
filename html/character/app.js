@@ -68,12 +68,18 @@
         return String(value || 0).padStart(3, '0');
     }
 
+    function updateSkinDisplay(skin) {
+        state.selectedSkin = Number(skin) || state.selectedSkin || 0;
+        const foundIndex = state.skins.findIndex((item) => Number(item) === state.selectedSkin);
+        if (foundIndex >= 0) state.selectedIndex = foundIndex;
+        skinId.textContent = formatSkin(state.selectedSkin);
+    }
+
     function selectSkin(index) {
         if (!state.skins.length) return;
         const count = state.skins.length;
         state.selectedIndex = ((index % count) + count) % count;
-        state.selectedSkin = Number(state.skins[state.selectedIndex]);
-        skinId.textContent = formatSkin(state.selectedSkin);
+        updateSkinDisplay(state.skins[state.selectedIndex]);
         emit('HeavyRPG:UI:character:previewSkin', { skin: state.selectedSkin });
     }
 
@@ -115,6 +121,10 @@
                 setBusy(false);
                 selectSkin(defaultIndex >= 0 ? defaultIndex : 0);
                 setStatus('Wybierz skin i nadaj postaci imie oraz nazwisko.', 'muted');
+            }
+
+            if (name === 'creator:setSkin') {
+                updateSkinDisplay(detail.skin);
             }
 
             if (name === 'creator:response') {
