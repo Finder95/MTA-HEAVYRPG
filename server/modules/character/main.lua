@@ -141,8 +141,17 @@ local function validatePayload(payload)
     }
 end
 
+local function clampNeed(value, fallback)
+    value = tonumber(value) or fallback or 0
+    if value < 0 then return 0 end
+    if value > 100 then return 100 end
+    return value
+end
+
 local function publicCharacter(row)
     if not row then return nil end
+    local survivalDefaults = (HRP.Config.survival and HRP.Config.survival.defaults) or {}
+
     return {
         id = tonumber(row.id),
         accountId = tonumber(row.account_id),
@@ -159,6 +168,13 @@ local function publicCharacter(row)
             intelligence = tonumber(row.intelligence) or 4,
             charisma = tonumber(row.charisma) or 4,
             focus = tonumber(row.focus) or 4
+        },
+        needs = {
+            hunger = clampNeed(row.hunger, survivalDefaults.hunger or 92),
+            thirst = clampNeed(row.thirst, survivalDefaults.thirst or 88),
+            energy = clampNeed(row.energy, survivalDefaults.energy or 86),
+            hygiene = clampNeed(row.hygiene, survivalDefaults.hygiene or 75),
+            stress = clampNeed(row.stress, survivalDefaults.stress or 8)
         },
         statPoints = tonumber(row.stat_points) or ((HRP.Config.character.stats and HRP.Config.character.stats.points) or 24),
         cash = tonumber(row.cash) or 0,
@@ -237,14 +253,16 @@ end
 
 function Repo.create(accountId, payload, callback)
     local cfg = HRP.Config.auth.spawn
+    local survivalDefaults = (HRP.Config.survival and HRP.Config.survival.defaults) or {}
     local now = HRP.Utils.now()
     local stats = payload.stats or {}
 
     local created = HRP.DB.exec([[INSERT INTO characters
         (account_id, firstname, lastname, gender, age, origin, archetype,
         strength, endurance, agility, intelligence, charisma, focus, stat_points,
-        cash, bank, skin, pos_x, pos_y, pos_z, rotation, interior, dimension, playtime, last_played_at, created_at, updated_at)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
+        cash, bank, skin, pos_x, pos_y, pos_z, rotation, interior, dimension,
+        hunger, thirst, energy, hygiene, stress, playtime, last_played_at, created_at, updated_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
             tonumber(accountId),
             payload.firstname,
             payload.lastname,
@@ -260,7 +278,7 @@ function Repo.create(accountId, payload, callback)
             stats.focus,
             (HRP.Config.character.stats and HRP.Config.character.stats.points) or 24,
             cfg.startingMoney or 500,
-            0,
+            (HRP.Config.bank and HRP.Config.bank.startingBalance) or 0,
             payload.skin,
             cfg.x,
             cfg.y,
@@ -268,6 +286,11 @@ function Repo.create(accountId, payload, callback)
             cfg.rotation,
             cfg.interior,
             cfg.dimension,
+            survivalDefaults.hunger or 92,
+            survivalDefaults.thirst or 88,
+            survivalDefaults.energy or 86,
+            survivalDefaults.hygiene or 75,
+            survivalDefaults.stress or 8,
             0,
             now,
             now,
