@@ -52,6 +52,11 @@ local function getCharacterId(player)
     return tonumber(getElementData(player, "hrp:character:id"))
 end
 
+local function movementSpeed(player)
+    local vx, vy, vz = getElementVelocity(player)
+    return ((vx or 0) * (vx or 0) + (vy or 0) * (vy or 0) + (vz or 0) * (vz or 0)) ^ 0.5
+end
+
 local function setPlayerNeedsData(player, state)
     local public = publicState(state)
     setElementData(player, "hrp:needs", public, false)
@@ -132,10 +137,11 @@ local function tickPlayer(player, state)
     local decay = cfg.decay or {}
     local regen = cfg.regeneration or {}
     local multiplier = 1
-    local moveState = getPedMoveState(player)
+    local speed = movementSpeed(player)
+    local inVehicle = getPedOccupiedVehicle(player) ~= false
 
-    if moveState == "sprint" then multiplier = multiplier * (cfg.sprintMultiplier or 1.6) end
-    if getPedOccupiedVehicle(player) then multiplier = multiplier * (cfg.vehicleEnergyMultiplier or 0.55) end
+    if speed > 0.12 and not inVehicle then multiplier = multiplier * (cfg.sprintMultiplier or 1.6) end
+    if inVehicle then multiplier = multiplier * (cfg.vehicleEnergyMultiplier or 0.55) end
 
     state.hunger = clamp(state.hunger - (decay.hunger or 1) * multiplier)
     state.thirst = clamp(state.thirst - (decay.thirst or 1.2) * multiplier)
@@ -143,7 +149,7 @@ local function tickPlayer(player, state)
     state.hygiene = clamp(state.hygiene - (decay.hygiene or 0.4))
     state.stress = clamp(state.stress - (decay.stress or 0))
 
-    if moveState == "stand" or moveState == "crouch" then
+    if speed < 0.02 and not inVehicle then
         state.energy = clamp(state.energy + (regen.energyPerMinuteResting or 0))
         state.stress = clamp(state.stress + (regen.stressPerMinuteResting or 0))
     end
