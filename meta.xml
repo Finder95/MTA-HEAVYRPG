@@ -16,6 +16,7 @@
     <script src="server/modules/auth/validators.lua" type="server" />
     <script src="server/modules/auth/repository.lua" type="server" />
     <script src="server/modules/auth/session.lua" type="server" />
+    <script src="server/modules/character/main.lua" type="server" />
     <script src="server/modules/auth/main.lua" type="server" />
     <script src="server/modules/spawn/main.lua" type="server" />
 
@@ -26,12 +27,16 @@
     <script src="client/core/local_storage.lua" type="client" />
     <script src="client/core/browser.lua" type="client" />
     <script src="client/modules/auth/main.lua" type="client" />
+    <script src="client/modules/character/main.lua" type="client" />
     <script src="client/core/boot.lua" type="client" />
 
     <!-- CEF files -->
     <file src="html/auth/index.html" />
     <file src="html/auth/style.css" />
     <file src="html/auth/app.js" />
+    <file src="html/character/index.html" />
+    <file src="html/character/style.css" />
+    <file src="html/character/app.js" />
 
     <!-- SQLite folder placeholder -->
     <file src="data/.gitkeep" />
