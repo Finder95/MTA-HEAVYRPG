@@ -34,15 +34,8 @@ local function makePasswordHash(username, password)
 end
 
 local function routeAfterAuth(player, account, publicAccount)
-    if HRP.Character and HRP.Character.Repository then
-        HRP.Character.Repository.findByAccountId(account.id, function(character)
-            if not isElement(player) then return end
-            if character then
-                triggerEvent("HeavyRPG:Character:onPlayerReady", resourceRoot, player, HRP.Character.getPublic(character))
-            else
-                HRP.Character.showCreator(player, publicAccount)
-            end
-        end)
+    if HRP.Character and HRP.Character.showCreator then
+        HRP.Character.showCreator(player, publicAccount)
         return
     end
 
