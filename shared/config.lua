@@ -39,7 +39,7 @@ HRP.Config = {
         },
 
         rememberSession = {
-            enabled = true,
+            enabled = false,
             days = 14
         },
 
@@ -62,13 +62,14 @@ HRP.Config = {
         defaultSkin = 46,
         skins = { 46, 47, 48, 60, 98, 101, 170, 171, 180, 184, 185, 186, 187, 188, 227, 240, 250, 261 },
         preview = {
-            x = 1481.08,
-            y = -1749.32,
-            z = 15.45,
+            x = 1687.22,
+            y = -2338.86,
+            z = 13.54,
             rotation = 180,
             interior = 0,
-            dimension = 0,
-            camera = { 1481.10, -1754.15, 16.35, 1481.08, -1749.32, 15.85 }
+            dimension = 65000,
+            camera = { 1687.22, -2343.10, 14.55, 1687.22, -2338.86, 13.95 },
+            animation = { block = "DEALER", name = "DEALER_IDLE" }
         }
     },
 
