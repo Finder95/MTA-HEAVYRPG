@@ -157,9 +157,9 @@ function Bank.transfer(player, target, amount, title)
 
     saveMoney(player)
     saveMoney(target)
-    record(player, "transfer_out", -total, title or ("Przelew do " .. getPlayerLabel(target)), getCharacterId(target))
-    record(target, "transfer_in", amount, title or ("Przelew od " .. getPlayerLabel(player)), getCharacterId(player))
+    record(player, "transfer_out", -amount, title or ("Przelew do " .. getPlayerLabel(target)), getCharacterId(target))
     if tax > 0 then record(player, "transfer_tax", -tax, "Oplata za przelew", getCharacterId(target)) end
+    record(target, "transfer_in", amount, title or ("Przelew od " .. getPlayerLabel(player)), getCharacterId(player))
 
     sync(player)
     sync(target)
