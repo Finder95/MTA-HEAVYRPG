@@ -7,9 +7,21 @@ HRP.Character.Repository = HRP.Character.Repository or {}
 local Character = HRP.Character
 local Repo = Character.Repository
 
+local function unwrapPayload(value)
+    if type(value) == "table" and type(value[1]) == "table" and not value.firstname and not value.id then
+        return value[1]
+    end
+    return value
+end
+
 local function sendCharacterResponse(player, ok, message, character)
     if not isElement(player) then return end
     triggerClientEvent(player, "HeavyRPG:Character:response", resourceRoot, ok == true, message, character or {})
+end
+
+local function sendUnexpectedError(player, err)
+    HRP.Logger.error("character", "Blad systemu postaci: " .. tostring(err))
+    sendCharacterResponse(player, false, "Blad systemu postaci. Sprawdz konsole serwera.")
 end
 
 local function listHasId(list, id)
@@ -49,6 +61,7 @@ local function normalizeStats(value)
     local stats = {}
     local sum = 0
 
+    value = unwrapPayload(value)
     if type(value) ~= "table" then value = {} end
 
     for _, attr in ipairs(attrs) do
@@ -70,6 +83,7 @@ end
 
 local function validatePayload(payload)
     local cfg = HRP.Config.character
+    payload = unwrapPayload(payload)
     if type(payload) ~= "table" then
         return false, "Niepoprawne dane postaci."
     end
@@ -260,13 +274,17 @@ function Repo.create(accountId, payload, callback)
         return
     end
 
-    HRP.DB.query([[SELECT * FROM characters
+    local started = HRP.DB.query([[SELECT * FROM characters
         WHERE account_id = ?
         ORDER BY id DESC
         LIMIT 1]], { tonumber(accountId) or 0 }, function(rows)
         local character = rows and rows[1] or nil
         callback(character ~= nil, character)
     end)
+
+    if started == false then
+        callback(false, nil)
+    end
 end
 
 function Character.getPublic(row)
@@ -315,10 +333,9 @@ local function enterCharacter(player, row, message)
     triggerEvent("HeavyRPG:Character:onPlayerReady", resourceRoot, player, public)
 end
 
-addEvent("HeavyRPG:Character:create", true)
-addEventHandler("HeavyRPG:Character:create", resourceRoot, function(payload)
-    local player = client
+local function handleCreateCharacter(player, payload)
     if not isElement(player) then return end
+    payload = unwrapPayload(payload)
 
     local accountId = HRP.Auth.Session.getAccountId(player)
     if not accountId then
@@ -349,20 +366,17 @@ addEventHandler("HeavyRPG:Character:create", resourceRoot, function(payload)
         Repo.create(accountId, data, function(created, character)
             if not isElement(player) then return end
             if not created or not character then
-                sendCharacterResponse(player, false, "Nie udalo sie utworzyc postaci.")
+                sendCharacterResponse(player, false, "Nie udalo sie utworzyc postaci. Sprawdz SQL w konsoli serwera.")
                 return
             end
 
             enterCharacter(player, character, "Postac utworzona.")
         end)
     end)
-end)
+end
 
-addEvent("HeavyRPG:Character:select", true)
-addEventHandler("HeavyRPG:Character:select", resourceRoot, function(characterId)
-    local player = client
+local function handleSelectCharacter(player, characterId)
     if not isElement(player) then return end
-
     local accountId = HRP.Auth.Session.getAccountId(player)
     if not accountId then
         sendCharacterResponse(player, false, "Najpierw musisz sie zalogowac.")
@@ -379,6 +393,24 @@ addEventHandler("HeavyRPG:Character:select", resourceRoot, function(characterId)
 
         enterCharacter(player, character, "Wybrano postac.")
     end)
+end
+
+addEvent("HeavyRPG:Character:create", true)
+addEventHandler("HeavyRPG:Character:create", resourceRoot, function(payload)
+    local player = client
+    local ok, err = pcall(handleCreateCharacter, player, payload)
+    if not ok then
+        sendUnexpectedError(player, err)
+    end
+end)
+
+addEvent("HeavyRPG:Character:select", true)
+addEventHandler("HeavyRPG:Character:select", resourceRoot, function(characterId)
+    local player = client
+    local ok, err = pcall(handleSelectCharacter, player, tonumber(characterId) or 0)
+    if not ok then
+        sendUnexpectedError(player, err)
+    end
 end)
 
 addEvent("HeavyRPG:Character:onPlayerReady", false)
