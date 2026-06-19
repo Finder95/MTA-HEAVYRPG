@@ -28,6 +28,11 @@ local function generatedEmail(username)
     return HRP.Utils.lower(username) .. "@local.heavyrpg"
 end
 
+local function makePasswordHash(username, password)
+    local normalized = HRP.Utils.lower(username)
+    return "sha256:" .. HRP.Utils.hashSha256(normalized .. ":" .. tostring(password or "") .. ":HeavyRPG")
+end
+
 local function routeAfterAuth(player, account, publicAccount)
     if HRP.Character and HRP.Character.Repository then
         HRP.Character.Repository.findByAccountId(account.id, function(character)
@@ -44,9 +49,15 @@ local function routeAfterAuth(player, account, publicAccount)
     triggerEvent("HeavyRPG:Auth:onPlayerLoggedIn", resourceRoot, player, publicAccount)
 end
 
-local function verifyPasswordAsync(password, passwordHashValue, callback)
+local function verifyPasswordAsync(account, password, callback)
+    local passwordHashValue = account and account.password_hash
     if type(passwordHashValue) ~= "string" or #passwordHashValue == 0 then
         callback(false, "INVALID_HASH")
+        return
+    end
+
+    if passwordHashValue:sub(1, 7) == "sha256:" then
+        callback(passwordHashValue == makePasswordHash(account.username, password), "LOCAL_HASH")
         return
     end
 
@@ -140,7 +151,7 @@ local function handleLogin(player, payload)
             return
         end
 
-        verifyPasswordAsync(password, account.password_hash, function(match, verifyReason)
+        verifyPasswordAsync(account, password, function(match, verifyReason)
             if not isElement(player) then return end
 
             if match then
@@ -150,7 +161,7 @@ local function handleLogin(player, payload)
 
             if verifyReason == "VERIFY_TIMEOUT" or verifyReason == "VERIFY_FAILED" or verifyReason == "INVALID_HASH" then
                 HRP.Security.audit(account.id, account.username, "login", false, player, tostring(verifyReason))
-                sendAuth(player, "login", false, HRP.AuthCodes.SERVER_ERROR, "Nie udalo sie sprawdzic hasla. Sprobuj ponownie.")
+                sendAuth(player, "login", false, HRP.AuthCodes.SERVER_ERROR, "Nie udalo sie sprawdzic hasla. Stworz nowe konto testowe po aktualizacji.")
                 return
             end
 
@@ -189,6 +200,7 @@ local function handleRegister(player, payload)
     local email = generatedEmail(username)
     local password = tostring(payload.password)
     local remember = HRP.Utils.bool(payload.remember)
+    local hashedPassword = makePasswordHash(username, password)
 
     HRP.Auth.Repository.usernameOrEmailExists(username, email, function(existing)
         if not isElement(player) then return end
@@ -198,29 +210,21 @@ local function handleRegister(player, payload)
             return
         end
 
-        passwordHash(password, "bcrypt", { cost = HRP.Config.auth.bcryptCost }, function(hashedPassword)
+        HRP.Auth.Repository.createAccount(username, email, hashedPassword, player, function(created, accountId)
             if not isElement(player) then return end
-            if not hashedPassword then
-                sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Nie udalo sie zabezpieczyc hasla.")
+            if not created then
+                HRP.Security.audit(nil, username, "register", false, player, "INSERT_FAILED")
+                sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Nie udalo sie utworzyc konta. Mozliwe, ze login jest zajety.")
                 return
             end
 
-            HRP.Auth.Repository.createAccount(username, email, hashedPassword, player, function(created, accountId)
-                if not isElement(player) then return end
-                if not created then
-                    HRP.Security.audit(nil, username, "register", false, player, "INSERT_FAILED")
-                    sendAuth(player, "register", false, HRP.AuthCodes.ACCOUNT_EXISTS, "Nie udalo sie utworzyc konta. Mozliwe, ze login jest zajety.")
+            HRP.Security.audit(accountId, username, "register", true, player, "OK")
+            HRP.Auth.Repository.findById(accountId, function(account)
+                if not isElement(player) or not account then
+                    sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Konto utworzono, ale nie udalo sie go zalogowac.")
                     return
                 end
-
-                HRP.Security.audit(accountId, username, "register", true, player, "OK")
-                HRP.Auth.Repository.findById(accountId, function(account)
-                    if not isElement(player) or not account then
-                        sendAuth(player, "register", false, HRP.AuthCodes.SERVER_ERROR, "Konto utworzono, ale nie udalo sie go zalogowac.")
-                        return
-                    end
-                    finishLogin(player, account, remember, "register")
-                end)
+                finishLogin(player, account, remember, "register")
             end)
         end)
     end)
