@@ -62,13 +62,14 @@ HRP.Config = {
         defaultSkin = 46,
         skins = { 46, 47, 48, 60, 98, 101, 170, 171, 180, 184, 185, 186, 187, 188, 227, 240, 250, 261 },
         preview = {
-            x = 0,
-            y = 0,
-            z = 3000,
-            rotation = 0,
+            -- Isolated LS City Hall scene: clean RPG-style character preview instead of the skybox.
+            x = 1481.08,
+            y = -1749.32,
+            z = 15.45,
+            rotation = 180,
             interior = 0,
             dimension = 65000,
-            camera = { 0, 3.35, 3001.18, 0, 0, 3000.86 },
+            camera = { 1481.08, -1753.05, 16.65, 1481.08, -1749.32, 15.95 },
             animation = { block = "DEALER", name = "DEALER_IDLE" }
         }
     },
