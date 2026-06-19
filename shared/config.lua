@@ -10,11 +10,11 @@ HRP.Config = {
         -- File is created in this resource. Keep SQLite local to the gamemode.
         path = "data/heavyrpg.db",
         share = 0,
-        schemaVersion = 2
+        schemaVersion = 3
     },
 
     modules = {
-        order = { "auth", "character", "spawn" }
+        order = { "auth", "character", "spawn", "survival", "bank" }
     },
 
     auth = {
@@ -105,6 +105,41 @@ HRP.Config = {
             camera = { 1481.08, -1753.05, 16.65, 1481.08, -1749.32, 15.95 },
             animation = { block = "DEALER", name = "DEALER_IDLE" }
         }
+    },
+
+    survival = {
+        tickMs = 60000,
+        saveEveryTicks = 5,
+        defaults = { hunger = 92, thirst = 88, energy = 86, hygiene = 75, stress = 8 },
+        decay = { hunger = 1.10, thirst = 1.45, energy = 0.85, hygiene = 0.55, stress = -0.20 },
+        sprintMultiplier = 1.6,
+        vehicleEnergyMultiplier = 0.55,
+        critical = { hunger = 8, thirst = 8, energy = 6, hygiene = 5, stress = 92 },
+        damage = { hunger = 2, thirst = 4, energy = 1, stress = 1 },
+        regeneration = { energyPerMinuteResting = 1.2, stressPerMinuteResting = -0.6 }
+    },
+
+    bank = {
+        startingBalance = 0,
+        transferTaxPercent = 1.5,
+        maxTransfer = 250000,
+        dailySoftLimit = 500000,
+        commands = {
+            balance = "bank",
+            deposit = "wplac",
+            withdraw = "wyplac",
+            transfer = "przelew"
+        }
+    },
+
+    hud = {
+        enabled = true,
+        style = "retro",
+        accent = { 46, 255, 139 },
+        warning = { 255, 190, 82 },
+        danger = { 255, 74, 74 },
+        background = { 5, 12, 10, 205 },
+        scanlineAlpha = 28
     },
 
     ui = {
