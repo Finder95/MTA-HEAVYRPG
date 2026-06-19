@@ -46,7 +46,19 @@ local function toBrowserPoint(absX, absY)
     return absX - Creator.x, absY - Creator.y
 end
 
+local function applyPreviewAnimation()
+    if not Creator.previewPed or not isElement(Creator.previewPed) then return end
+
+    local anim = (HRP.Config.character.preview and HRP.Config.character.preview.animation) or {}
+    setPedAnimation(Creator.previewPed, anim.block or "DEALER", anim.name or "DEALER_IDLE", -1, true, false, false, false)
+end
+
 local function renderCreator()
+    if Creator.previewPed and isElement(Creator.previewPed) then
+        local rot = (getElementRotation(Creator.previewPed) or 0) + 0.08
+        setElementRotation(Creator.previewPed, 0, 0, rot)
+    end
+
     if Creator.visible and Creator.browser then
         dxDrawImage(Creator.x, Creator.y, Creator.w, Creator.h, Creator.browser, 0, 0, 0, tocolor(255, 255, 255, 255), true)
     end
@@ -114,6 +126,7 @@ local function setPreviewSkin(skin)
 
     if Creator.previewPed and isElement(Creator.previewPed) then
         setElementModel(Creator.previewPed, skin)
+        applyPreviewAnimation()
     end
 end
 
@@ -131,13 +144,34 @@ local function setupPreview(payload)
         setElementInterior(Creator.previewPed, preview.interior or 0)
         setElementDimension(Creator.previewPed, preview.dimension or 0)
         setElementFrozen(Creator.previewPed, true)
+        applyPreviewAnimation()
     end
 
     setElementInterior(localPlayer, preview.interior or 0)
     setElementDimension(localPlayer, preview.dimension or 0)
     setElementFrozen(localPlayer, true)
+    setCameraInterior(preview.interior or 0)
     setCameraMatrix(camera[1], camera[2], camera[3], camera[4], camera[5], camera[6])
     fadeCamera(true, 0.5)
+end
+
+local function selectPreviewOffset(offset)
+    if not Creator.visible or not Creator.skins or #Creator.skins == 0 then return end
+
+    local currentIndex = 1
+    for index, skin in ipairs(Creator.skins) do
+        if tonumber(skin) == tonumber(Creator.selectedSkin) then
+            currentIndex = index
+            break
+        end
+    end
+
+    local nextIndex = currentIndex + offset
+    if nextIndex < 1 then nextIndex = #Creator.skins end
+    if nextIndex > #Creator.skins then nextIndex = 1 end
+
+    setPreviewSkin(Creator.skins[nextIndex])
+    emit("creator:setSkin", { skin = Creator.selectedSkin })
 end
 
 local function setVisible(state)
@@ -158,12 +192,16 @@ local function setVisible(state)
         addEventHandler("onClientClick", root, cursorClick)
         bindKey("mouse_wheel_up", "down", mouseWheel)
         bindKey("mouse_wheel_down", "down", mouseWheel)
+        bindKey("arrow_l", "down", function() selectPreviewOffset(-1) end)
+        bindKey("arrow_r", "down", function() selectPreviewOffset(1) end)
     else
         removeEventHandler("onClientRender", root, renderCreator)
         removeEventHandler("onClientCursorMove", root, cursorMove)
         removeEventHandler("onClientClick", root, cursorClick)
         unbindKey("mouse_wheel_up", "down", mouseWheel)
         unbindKey("mouse_wheel_down", "down", mouseWheel)
+        unbindKey("arrow_l", "down")
+        unbindKey("arrow_r", "down")
     end
 end
 
