@@ -62,13 +62,13 @@ HRP.Config = {
         defaultSkin = 46,
         skins = { 46, 47, 48, 60, 98, 101, 170, 171, 180, 184, 185, 186, 187, 188, 227, 240, 250, 261 },
         preview = {
-            x = 1687.22,
-            y = -2338.86,
-            z = 13.54,
+            x = 0,
+            y = 0,
+            z = 3000,
             rotation = 0,
             interior = 0,
             dimension = 65000,
-            camera = { 1687.22, -2343.10, 14.55, 1687.22, -2338.86, 13.95 },
+            camera = { 0, 4.2, 3001.25, 0, 0, 3000.85 },
             animation = { block = "DEALER", name = "DEALER_IDLE" }
         }
     },
