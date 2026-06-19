@@ -11,6 +11,7 @@ HRP.ClientCharacter = HRP.ClientCharacter or {
     envApplied = false,
     oldHour = nil,
     oldMinute = nil,
+    oldWeather = nil,
     sx = 0,
     sy = 0,
     x = 0,
@@ -97,16 +98,21 @@ local function applyCreatorEnvironment()
         Creator.oldHour, Creator.oldMinute = getTime()
     end
 
+    if getWeather then
+        Creator.oldWeather = getWeather()
+    end
+
     Creator.envApplied = true
     setTime(12, 0)
+    if setWeather then setWeather(0) end
     showPlayerHudComponent("radar", false)
     showPlayerHudComponent("area_name", false)
     showPlayerHudComponent("vehicle_name", false)
 
-    if setSkyGradient then setSkyGradient(8, 10, 14, 30, 34, 40) end
+    if resetSkyGradient then resetSkyGradient() end
     if setCloudsEnabled then setCloudsEnabled(false) end
-    if setFarClipDistance then setFarClipDistance(55) end
-    if setFogDistance then setFogDistance(18) end
+    if setFarClipDistance then setFarClipDistance(120) end
+    if setFogDistance then setFogDistance(80) end
 end
 
 local function restoreCreatorEnvironment()
@@ -121,6 +127,10 @@ local function restoreCreatorEnvironment()
         setTime(Creator.oldHour, Creator.oldMinute)
     end
 
+    if Creator.oldWeather and setWeather then
+        setWeather(Creator.oldWeather)
+    end
+
     if resetSkyGradient then resetSkyGradient() end
     if setCloudsEnabled then setCloudsEnabled(true) end
     if resetFarClipDistance then resetFarClipDistance() end
@@ -128,6 +138,7 @@ local function restoreCreatorEnvironment()
 
     Creator.oldHour = nil
     Creator.oldMinute = nil
+    Creator.oldWeather = nil
 end
 
 local function createPreviewPed(skin)
