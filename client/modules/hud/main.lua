@@ -7,11 +7,21 @@ HRP.ClientHUD = HRP.ClientHUD or {
     money = { cash = 0, bank = 0 },
     sx = 0,
     sy = 0,
-    lastSync = 0
+    lastSync = 0,
+    textures = {}
 }
 
 local HUD = HRP.ClientHUD
 local hiddenComponents = { "ammo", "area_name", "armour", "breath", "clock", "health", "money", "radar", "vehicle_name", "weapon" }
+local texturePaths = {
+    health = "assets/hud/health.png",
+    armor = "assets/hud/armor.png",
+    hunger = "assets/hud/hunger.png",
+    thirst = "assets/hud/thirst.png",
+    energy = "assets/hud/energy.png",
+    hygiene = "assets/hud/hygiene.png",
+    stress = "assets/hud/stress.png"
+}
 
 local function color(name, alpha)
     local cfg = HRP.Config.hud or {}
@@ -28,9 +38,9 @@ end
 
 local function uiScale()
     local sx, sy = guiGetScreenSize()
-    local scale = math.min(sx / 1600, sy / 900)
-    if scale < 1.05 then scale = 1.05 end
-    if scale > 1.65 then scale = 1.65 end
+    local scale = math.min(sx / 1920, sy / 1080)
+    if scale < 0.90 then scale = 0.90 end
+    if scale > 1.18 then scale = 1.18 end
     return scale, sx, sy
 end
 
@@ -52,62 +62,29 @@ local function shadowText(text, x, y, w, h, textColor, scale, font, alignX, alig
     dxDrawText(text, x, y, w, h, textColor, scale or 1, font or "default-bold", alignX or "left", alignY or "top", false, false, true)
 end
 
+local function loadTextures()
+    for name, path in pairs(texturePaths) do
+        if not HUD.textures[name] or not isElement(HUD.textures[name]) then
+            HUD.textures[name] = dxCreateTexture(path, "argb", true, "clamp")
+        end
+    end
+end
+
+local function destroyTextures()
+    for name, texture in pairs(HUD.textures or {}) do
+        if isElement(texture) then destroyElement(texture) end
+        HUD.textures[name] = nil
+    end
+end
+
 local function drawIcon(kind, x, y, size, iconColor)
-    local c = iconColor
-    local s = size
-    local cx = x + s / 2
-    local cy = y + s / 2
-    local lw = math.max(1, math.floor(s / 12))
-
-    if kind == "health" then
-        dxDrawRectangle(cx - s * 0.13, y + s * 0.18, s * 0.26, s * 0.64, c, true)
-        dxDrawRectangle(x + s * 0.18, cy - s * 0.13, s * 0.64, s * 0.26, c, true)
+    local texture = HUD.textures and HUD.textures[kind]
+    if texture and isElement(texture) then
+        dxDrawImage(x, y, size, size, texture, 0, 0, 0, iconColor, true)
         return
     end
 
-    if kind == "armor" then
-        dxDrawLine(cx, y + s * 0.10, x + s * 0.80, y + s * 0.26, c, lw, true)
-        dxDrawLine(x + s * 0.80, y + s * 0.26, x + s * 0.70, y + s * 0.72, c, lw, true)
-        dxDrawLine(x + s * 0.70, y + s * 0.72, cx, y + s * 0.90, c, lw, true)
-        dxDrawLine(cx, y + s * 0.90, x + s * 0.30, y + s * 0.72, c, lw, true)
-        dxDrawLine(x + s * 0.30, y + s * 0.72, x + s * 0.20, y + s * 0.26, c, lw, true)
-        dxDrawLine(x + s * 0.20, y + s * 0.26, cx, y + s * 0.10, c, lw, true)
-        return
-    end
-
-    if kind == "hunger" then
-        dxDrawLine(x + s * 0.28, y + s * 0.16, x + s * 0.28, y + s * 0.84, c, lw, true)
-        dxDrawLine(x + s * 0.18, y + s * 0.18, x + s * 0.38, y + s * 0.18, c, lw, true)
-        dxDrawLine(x + s * 0.18, y + s * 0.30, x + s * 0.38, y + s * 0.30, c, lw, true)
-        dxDrawLine(x + s * 0.64, y + s * 0.16, x + s * 0.64, y + s * 0.84, c, lw, true)
-        dxDrawLine(x + s * 0.64, y + s * 0.16, x + s * 0.82, y + s * 0.34, c, lw, true)
-        return
-    end
-
-    if kind == "thirst" then
-        dxDrawLine(cx, y + s * 0.12, x + s * 0.75, y + s * 0.48, c, lw, true)
-        dxDrawLine(x + s * 0.75, y + s * 0.48, cx, y + s * 0.88, c, lw, true)
-        dxDrawLine(cx, y + s * 0.88, x + s * 0.25, y + s * 0.48, c, lw, true)
-        dxDrawLine(x + s * 0.25, y + s * 0.48, cx, y + s * 0.12, c, lw, true)
-        return
-    end
-
-    if kind == "energy" then
-        dxDrawLine(x + s * 0.62, y + s * 0.08, x + s * 0.32, y + s * 0.50, c, lw + 1, true)
-        dxDrawLine(x + s * 0.32, y + s * 0.50, x + s * 0.56, y + s * 0.50, c, lw + 1, true)
-        dxDrawLine(x + s * 0.56, y + s * 0.50, x + s * 0.38, y + s * 0.92, c, lw + 1, true)
-        return
-    end
-
-    if kind == "stress" then
-        dxDrawLine(x + s * 0.10, cy, x + s * 0.28, cy, c, lw, true)
-        dxDrawLine(x + s * 0.28, cy, x + s * 0.38, y + s * 0.26, c, lw, true)
-        dxDrawLine(x + s * 0.38, y + s * 0.26, x + s * 0.52, y + s * 0.74, c, lw, true)
-        dxDrawLine(x + s * 0.52, y + s * 0.74, x + s * 0.66, y + s * 0.34, c, lw, true)
-        dxDrawLine(x + s * 0.66, y + s * 0.34, x + s * 0.82, cy, c, lw, true)
-        dxDrawLine(x + s * 0.82, cy, x + s * 0.92, cy, c, lw, true)
-        return
-    end
+    dxDrawRectangle(x + size * 0.32, y + size * 0.32, size * 0.36, size * 0.36, iconColor, true)
 end
 
 local function drawStatusBar(kind, label, value, x, y, w, h, barColorName, inverse, scale)
@@ -115,18 +92,18 @@ local function drawStatusBar(kind, label, value, x, y, w, h, barColorName, inver
     local fill = inverse and (100 - value) or value
     local danger = (not inverse and value <= 18) or (inverse and value >= 82)
     local fillColor = danger and color("danger", 235) or color(barColorName, 228)
-    local iconSize = 26 * scale
-    local barX = x + iconSize + 12 * scale
-    local barY = y + 12 * scale
-    local labelScale = 0.78 * scale
+    local iconSize = 20 * scale
+    local barX = x + iconSize + 9 * scale
+    local barY = y + 10 * scale
+    local labelScale = 0.66 * scale
 
-    drawIcon(kind, x, y + 2 * scale, iconSize, fillColor)
-    shadowText(label, barX, y - 2 * scale, barX + w, y + 17 * scale, color("text", 220), labelScale, "default-bold")
-    shadowText(tostring(math.floor(value)), barX, y - 2 * scale, barX + w, y + 17 * scale, danger and color("danger", 240) or color("muted", 220), labelScale, "default-bold", "right")
+    drawIcon(kind, x, y + 3 * scale, iconSize, fillColor)
+    shadowText(label, barX, y - 2 * scale, barX + w, y + 15 * scale, color("text", 218), labelScale, "default-bold")
+    shadowText(tostring(math.floor(value)), barX, y - 2 * scale, barX + w, y + 15 * scale, danger and color("danger", 240) or color("muted", 220), labelScale, "default-bold", "right")
 
-    dxDrawRectangle(barX, barY, w, h, color("barBack", 150), true)
-    dxDrawRectangle(barX, barY, math.max(4 * scale, w * (fill / 100)), h, fillColor, true)
-    dxDrawRectangle(barX, barY + h - math.max(1, scale), w, math.max(1, scale), tocolor(0, 0, 0, 120), true)
+    dxDrawRectangle(barX, barY, w, h, color("barBack", 142), true)
+    dxDrawRectangle(barX, barY, math.max(3 * scale, w * (fill / 100)), h, fillColor, true)
+    dxDrawRectangle(barX, barY + h - math.max(1, scale), w, math.max(1, scale), tocolor(0, 0, 0, 115), true)
 end
 
 local function getVehicleSpeed()
@@ -137,38 +114,39 @@ local function getVehicleSpeed()
 end
 
 local function drawStatusCluster(scale, sx)
-    local margin = 36 * scale
-    local row = 43 * scale
-    local barW = 310 * scale
-    local barH = 14 * scale
-    local iconSize = 26 * scale
-    local totalW = iconSize + 12 * scale + barW
+    local margin = 34 * scale
+    local row = 30 * scale
+    local barW = 220 * scale
+    local barH = 9 * scale
+    local iconSize = 20 * scale
+    local totalW = iconSize + 9 * scale + barW
     local x = sx - margin - totalW
-    local y = 118 * scale
+    local y = 102 * scale
 
     drawStatusBar("health", "Zdrowie", getElementHealth(localPlayer), x, y, barW, barH, "health", false, scale)
     drawStatusBar("armor", "Pancerz", getPedArmor(localPlayer), x, y + row, barW, barH, "armor", false, scale)
     drawStatusBar("hunger", "Glod", HUD.needs.hunger, x, y + row * 2, barW, barH, "hunger", false, scale)
     drawStatusBar("thirst", "Pragnienie", HUD.needs.thirst, x, y + row * 3, barW, barH, "thirst", false, scale)
     drawStatusBar("energy", "Energia", HUD.needs.energy, x, y + row * 4, barW, barH, "energy", false, scale)
-    drawStatusBar("stress", "Stres", HUD.needs.stress, x, y + row * 5, barW, barH, "stress", true, scale)
+    drawStatusBar("hygiene", "Higiena", HUD.needs.hygiene, x, y + row * 5, barW, barH, "hygiene", false, scale)
+    drawStatusBar("stress", "Stres", HUD.needs.stress, x, y + row * 6, barW, barH, "stress", true, scale)
 end
 
 local function drawMoneyBlock(scale, sx)
     local speed = getVehicleSpeed()
     local hour, minute = getTime()
-    local x = sx - 36 * scale
-    local y = 28 * scale
-    local textScale = 0.92 * scale
-    local smallScale = 0.80 * scale
-    local lineH = 23 * scale
+    local x = sx - 34 * scale
+    local y = 24 * scale
+    local textScale = 0.76 * scale
+    local smallScale = 0.66 * scale
+    local lineH = 18 * scale
 
-    shadowText("Gotowka " .. money(HUD.money.cash or getPlayerMoney(localPlayer)), x - 390 * scale, y, x, y + lineH, color("cash", 235), textScale, "default-bold", "right")
-    shadowText("Konto " .. money(HUD.money.bank or 0), x - 390 * scale, y + lineH, x, y + lineH * 2, color("text", 220), smallScale, "default-bold", "right")
-    shadowText(string.format("%02d:%02d", hour or 0, minute or 0), x - 190 * scale, y + lineH * 2, x, y + lineH * 3, color("muted", 220), smallScale, "default-bold", "right")
+    shadowText("Gotowka " .. money(HUD.money.cash or getPlayerMoney(localPlayer)), x - 300 * scale, y, x, y + lineH, color("cash", 235), textScale, "default-bold", "right")
+    shadowText("Konto " .. money(HUD.money.bank or 0), x - 300 * scale, y + lineH, x, y + lineH * 2, color("text", 220), smallScale, "default-bold", "right")
+    shadowText(string.format("%02d:%02d", hour or 0, minute or 0), x - 150 * scale, y + lineH * 2, x, y + lineH * 3, color("muted", 220), smallScale, "default-bold", "right")
 
     if speed then
-        shadowText(tostring(speed) .. " km/h", x - 190 * scale, y + lineH * 3, x, y + lineH * 4, color("text", 220), textScale, "default-bold", "right")
+        shadowText(tostring(speed) .. " km/h", x - 150 * scale, y + lineH * 3, x, y + lineH * 4, color("text", 220), textScale, "default-bold", "right")
     end
 end
 
@@ -195,6 +173,7 @@ local function setVisible(state)
 
     if state then
         hideDefaultComponents()
+        loadTextures()
         addEventHandler("onClientRender", root, renderHUD)
     else
         removeEventHandler("onClientRender", root, renderHUD)
@@ -236,6 +215,11 @@ end)
 
 addEventHandler("onClientResourceStart", resourceRoot, function()
     hideDefaultComponents()
+    loadTextures()
+end)
+
+addEventHandler("onClientResourceStop", resourceRoot, function()
+    destroyTextures()
 end)
 
 addEventHandler("onClientPlayerSpawn", localPlayer, function()
