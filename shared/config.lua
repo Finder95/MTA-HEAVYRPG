@@ -25,9 +25,6 @@ HRP.Config = {
         passwordMax = 72,
         emailMax = 120,
 
-        -- Limit how many accounts may be created from one GTA serial.
-        maxAccountsPerSerial = 2,
-
         -- Rate limit per player and per action.
         rateLimits = {
             login = { limit = 6, windowSeconds = 60 },
