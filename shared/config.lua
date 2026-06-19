@@ -14,7 +14,7 @@ HRP.Config = {
     },
 
     modules = {
-        order = { "auth", "spawn" }
+        order = { "auth", "character", "spawn" }
     },
 
     auth = {
@@ -32,7 +32,8 @@ HRP.Config = {
         rateLimits = {
             login = { limit = 6, windowSeconds = 60 },
             register = { limit = 3, windowSeconds = 120 },
-            resume = { limit = 10, windowSeconds = 60 }
+            resume = { limit = 10, windowSeconds = 60 },
+            character = { limit = 4, windowSeconds = 60 }
         },
 
         failedLoginLock = {
@@ -60,8 +61,23 @@ HRP.Config = {
         }
     },
 
+    character = {
+        defaultSkin = 46,
+        skins = { 46, 47, 48, 60, 98, 101, 170, 171, 180, 184, 185, 186, 187, 188, 227, 240, 250, 261 },
+        preview = {
+            x = 1481.08,
+            y = -1749.32,
+            z = 15.45,
+            rotation = 180,
+            interior = 0,
+            dimension = 0,
+            camera = { 1481.10, -1754.15, 16.35, 1481.08, -1749.32, 15.85 }
+        }
+    },
+
     ui = {
         url = "http://mta/local/html/auth/index.html",
+        characterUrl = "http://mta/local/html/character/index.html",
         toggleDevToolsKey = "F10"
     }
 }
