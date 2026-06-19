@@ -44,6 +44,35 @@ local function routeAfterAuth(player, account, publicAccount)
     triggerEvent("HeavyRPG:Auth:onPlayerLoggedIn", resourceRoot, player, publicAccount)
 end
 
+local function verifyPasswordAsync(password, passwordHashValue, callback)
+    if type(passwordHashValue) ~= "string" or #passwordHashValue == 0 then
+        callback(false, "INVALID_HASH")
+        return
+    end
+
+    local done = false
+    local timeoutTimer
+
+    local function finish(match, reason)
+        if done then return end
+        done = true
+        if timeoutTimer and isTimer(timeoutTimer) then killTimer(timeoutTimer) end
+        callback(match == true, reason)
+    end
+
+    timeoutTimer = setTimer(function()
+        finish(false, "VERIFY_TIMEOUT")
+    end, 8000, 1)
+
+    local ok, started = pcall(passwordVerify, tostring(password or ""), passwordHashValue, {}, function(match)
+        finish(match == true, match == true and "OK" or "NO_MATCH")
+    end)
+
+    if not ok or started == false then
+        finish(false, "VERIFY_FAILED")
+    end
+end
+
 local function finishLogin(player, account, remember, authType)
     HRP.Auth.Repository.updateSuccessfulLogin(account.id, player)
 
@@ -111,11 +140,17 @@ local function handleLogin(player, payload)
             return
         end
 
-        passwordVerify(password, account.password_hash, {}, function(match)
+        verifyPasswordAsync(password, account.password_hash, function(match, verifyReason)
             if not isElement(player) then return end
 
             if match then
                 finishLogin(player, account, remember, "login")
+                return
+            end
+
+            if verifyReason == "VERIFY_TIMEOUT" or verifyReason == "VERIFY_FAILED" or verifyReason == "INVALID_HASH" then
+                HRP.Security.audit(account.id, account.username, "login", false, player, tostring(verifyReason))
+                sendAuth(player, "login", false, HRP.AuthCodes.SERVER_ERROR, "Nie udalo sie sprawdzic hasla. Sprobuj ponownie.")
                 return
             end
 
