@@ -41,6 +41,15 @@
     <file src="html/character/style.css" />
     <file src="html/character/app.js" />
 
+    <!-- HUD sprites -->
+    <file src="assets/hud/health.png" />
+    <file src="assets/hud/armor.png" />
+    <file src="assets/hud/hunger.png" />
+    <file src="assets/hud/thirst.png" />
+    <file src="assets/hud/energy.png" />
+    <file src="assets/hud/hygiene.png" />
+    <file src="assets/hud/stress.png" />
+
     <!-- SQLite folder placeholder -->
     <file src="data/.gitkeep" />
 
