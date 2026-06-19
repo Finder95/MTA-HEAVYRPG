@@ -98,16 +98,12 @@ function Session.createRememberToken(accountId, player, callback)
     local now = HRP.Utils.now()
     local expires = now + ((HRP.Config.auth.rememberSession.days or 14) * 86400)
 
-    HRP.DB.query([[INSERT INTO account_sessions(account_id, token_hash, serial, ip, created_at, last_used_at, expires_at)
+    local created = HRP.DB.exec([[INSERT INTO account_sessions(account_id, token_hash, serial, ip, created_at, last_used_at, expires_at)
         VALUES(?, ?, ?, ?, ?, ?, ?)]], {
             accountId, tokenHash, getPlayerSerial(player), getPlayerIP(player), now, now, expires
-        }, function(result, affectedRows)
-            if affectedRows and affectedRows > 0 then
-                callback(token)
-            else
-                callback(nil)
-            end
-        end)
+        })
+
+    callback(created and token or nil)
 end
 
 function Session.resumeFromToken(player, token, callback)
