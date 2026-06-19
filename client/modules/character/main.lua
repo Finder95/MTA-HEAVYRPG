@@ -55,8 +55,8 @@ end
 
 local function renderCreator()
     if Creator.previewPed and isElement(Creator.previewPed) then
-        local rot = (getElementRotation(Creator.previewPed) or 0) + 0.08
-        setElementRotation(Creator.previewPed, 0, 0, rot)
+        local _, _, rz = getElementRotation(Creator.previewPed)
+        setElementRotation(Creator.previewPed, 0, 0, (tonumber(rz) or 0) + 0.08)
     end
 
     if Creator.visible and Creator.browser then
@@ -174,6 +174,14 @@ local function selectPreviewOffset(offset)
     emit("creator:setSkin", { skin = Creator.selectedSkin })
 end
 
+local function previewPreviousSkin()
+    selectPreviewOffset(-1)
+end
+
+local function previewNextSkin()
+    selectPreviewOffset(1)
+end
+
 local function setVisible(state)
     state = state == true
     if Creator.visible == state then return end
@@ -192,16 +200,16 @@ local function setVisible(state)
         addEventHandler("onClientClick", root, cursorClick)
         bindKey("mouse_wheel_up", "down", mouseWheel)
         bindKey("mouse_wheel_down", "down", mouseWheel)
-        bindKey("arrow_l", "down", function() selectPreviewOffset(-1) end)
-        bindKey("arrow_r", "down", function() selectPreviewOffset(1) end)
+        bindKey("arrow_l", "down", previewPreviousSkin)
+        bindKey("arrow_r", "down", previewNextSkin)
     else
         removeEventHandler("onClientRender", root, renderCreator)
         removeEventHandler("onClientCursorMove", root, cursorMove)
         removeEventHandler("onClientClick", root, cursorClick)
         unbindKey("mouse_wheel_up", "down", mouseWheel)
         unbindKey("mouse_wheel_down", "down", mouseWheel)
-        unbindKey("arrow_l", "down")
-        unbindKey("arrow_r", "down")
+        unbindKey("arrow_l", "down", previewPreviousSkin)
+        unbindKey("arrow_r", "down", previewNextSkin)
     end
 end
 
