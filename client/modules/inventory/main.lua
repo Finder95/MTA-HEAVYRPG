@@ -3,8 +3,10 @@ local HRP = HeavyRPG
 
 HRP.ClientInventory = HRP.ClientInventory or {
     visible = false,
+    blocked = true,
     items = {},
     categories = {},
+    categoryBounds = {},
     selected = 1,
     scroll = 0,
     category = "all",
@@ -21,11 +23,12 @@ HRP.ClientInventory = HRP.ClientInventory or {
 
 local Inv = HRP.ClientInventory
 local clickAttached = false
-local fallbackCategories = { all = "Wszystko", documents = "Dokumenty", consumable = "Jedzenie", medical = "Medyczne", utility = "Uzytkowe", illegal = "Nielegalne", misc = "Inne" }
+local fallbackCategories = { all = "Wszystko", money = "Gotowka", documents = "Dokumenty", consumable = "Jedzenie", medical = "Medyczne", utility = "Uzytkowe", illegal = "Nielegalne", misc = "Inne" }
 
 local function cfg() return HRP.Config.inventory or {} end
 local function clamp(v, minV, maxV) v = tonumber(v) or minV or 0 if v < minV then return minV end if v > maxV then return maxV end return v end
 local function weightText(v) return string.format("%.2f kg", tonumber(v) or 0) end
+local function moneyText(v) return "$" .. tostring(math.floor(tonumber(v) or 0)) end
 
 local function uiScale()
     local sx, sy = guiGetScreenSize()
@@ -123,13 +126,17 @@ local function drawWeightBar(x, y, w, h)
 end
 
 local function drawCategories(scale)
+    Inv.categoryBounds = {}
     local x, y, h = Inv.x + 18 * scale, Inv.y + 70 * scale, 25 * scale
+    local maxX = Inv.x + Inv.w - 18 * scale
     for _, id in ipairs(categoryOrder()) do
         local label = categoryLabel(id)
         local w = math.max(82 * scale, dxGetTextWidth(label, 0.72 * scale, "default-bold") + 18 * scale)
+        if x + w > maxX then break end
         local active = Inv.category == id
         dxDrawRectangle(x, y, w, h, active and color("rowActive", 210) or color("row", 112), true)
         shadowText(label, x, y + 4 * scale, x + w, y + h, active and color("text", 245) or color("muted", 220), 0.72 * scale, "default-bold", "center")
+        Inv.categoryBounds[#Inv.categoryBounds + 1] = { id = id, x = x, y = y, w = w, h = h }
         x = x + w + 6 * scale
     end
 end
@@ -149,8 +156,9 @@ local function drawList(scale, list)
         dxDrawRectangle(x + 1, rowY, w - 2, Inv.rowH - 1, index == Inv.selected and color("rowActive", 210) or ((row % 2 == 0) and color("rowAlt", 92) or color("row", 75)), true)
         if item then
             local qColor = (tonumber(item.quality) or 100) <= 25 and color("danger", 230) or color("text", 230)
+            local qty = item.itemId == "cash" and moneyText(item.quantity) or ("x" .. tostring(item.quantity or 1))
             shadowText(item.label, x + 10 * scale, rowY + 5 * scale, x + w - 152 * scale, rowY + Inv.rowH, color("text", 235), 0.72 * scale, "default-bold", "left", "top", true)
-            shadowText("x" .. tostring(item.quantity or 1), x + w - 142 * scale, rowY + 5 * scale, x + w - 98 * scale, rowY + Inv.rowH, qColor, 0.72 * scale, "default-bold", "right")
+            shadowText(qty, x + w - 142 * scale, rowY + 5 * scale, x + w - 98 * scale, rowY + Inv.rowH, qColor, 0.72 * scale, "default-bold", "right")
             shadowText(weightText(item.totalWeight), x + w - 94 * scale, rowY + 5 * scale, x + w - 18 * scale, rowY + Inv.rowH, color("muted", 230), 0.72 * scale, "default-bold", "right")
         end
     end
@@ -166,8 +174,16 @@ local function drawDetails(scale, item)
     shadowText(item.label, x + 18 * scale, y + 16 * scale, x + w - 18 * scale, y + 42 * scale, color("text", 245), 0.94 * scale, "default-bold", "left", "top", true)
     shadowText(categoryLabel(item.category), x + 18 * scale, y + 44 * scale, x + w - 18 * scale, y + 65 * scale, color("accent", 230), 0.7 * scale, "default-bold")
 
+    local amountValue = item.itemId == "cash" and moneyText(item.quantity) or ("x" .. tostring(item.quantity or 1))
+    local rows = {
+        { item.itemId == "cash" and "Kwota" or "Ilosc", amountValue },
+        { "Waga", weightText(item.totalWeight) .. " / " .. weightText(item.weight or 0) .. " szt." },
+        { "Jakosc", tostring(item.quality or 100) .. "%" },
+        { "Stan", tostring(item.state or "normal") },
+        { "UID", item.virtual and "system" or ("#" .. tostring(item.uid or "-")) }
+    }
+
     local yy = y + 82 * scale
-    local rows = { { "Ilosc", "x" .. tostring(item.quantity or 1) }, { "Waga", weightText(item.totalWeight) .. " / " .. weightText(item.weight or 0) .. " szt." }, { "Jakosc", tostring(item.quality or 100) .. "%" }, { "Stan", tostring(item.state or "normal") }, { "UID", "#" .. tostring(item.uid or "-") } }
     for _, row in ipairs(rows) do
         shadowText(row[1], x + 18 * scale, yy, x + 112 * scale, yy + 20 * scale, color("muted", 220), 0.7 * scale, "default-bold")
         shadowText(row[2], x + 112 * scale, yy, x + w - 18 * scale, yy + 20 * scale, color("text", 232), 0.7 * scale, "default-bold", "right")
@@ -179,10 +195,11 @@ local function drawDetails(scale, item)
     shadowText(item.description or "Brak opisu.", x + 18 * scale, yy + 24 * scale, x + w - 18 * scale, y + h - 96 * scale, color("text", 225), 0.72 * scale, "default", "left", "top", true, true)
 
     local actionY = y + h - 72 * scale
-    shadowText("ENTER", x + 18 * scale, actionY, x + 88 * scale, actionY + 22 * scale, item.usable and color("accent", 220) or color("muted", 150), 0.72 * scale, "default-bold")
-    shadowText(item.usable and "Uzyj" or "Brak akcji", x + 90 * scale, actionY, x + w - 18 * scale, actionY + 22 * scale, color("text", 220), 0.72 * scale, "default-bold")
-    shadowText("BACKSPACE", x + 18 * scale, actionY + 26 * scale, x + 118 * scale, actionY + 48 * scale, color("danger", 220), 0.72 * scale, "default-bold")
-    shadowText("Wyrzuc 1 szt.", x + 120 * scale, actionY + 26 * scale, x + w - 18 * scale, actionY + 48 * scale, color("text", 220), 0.72 * scale, "default-bold")
+    local canUse = item.usable and not item.virtual
+    shadowText("ENTER", x + 18 * scale, actionY, x + 88 * scale, actionY + 22 * scale, canUse and color("accent", 220) or color("muted", 150), 0.72 * scale, "default-bold")
+    shadowText(canUse and "Uzyj" or "Brak akcji", x + 90 * scale, actionY, x + w - 18 * scale, actionY + 22 * scale, color("text", 220), 0.72 * scale, "default-bold")
+    shadowText("BACKSPACE", x + 18 * scale, actionY + 26 * scale, x + 118 * scale, actionY + 48 * scale, item.virtual and color("muted", 135) or color("danger", 220), 0.72 * scale, "default-bold")
+    shadowText(item.virtual and "Nie mozna wyrzucic" or "Wyrzuc 1 szt.", x + 120 * scale, actionY + 26 * scale, x + w - 18 * scale, actionY + 48 * scale, color("text", 220), 0.72 * scale, "default-bold")
 end
 
 local function renderInventory()
@@ -199,13 +216,22 @@ local function renderInventory()
     drawCategories(scale)
     drawList(scale, list)
     drawDetails(scale, item)
-    shadowText("I / ESC - zamknij    TAB - kategoria    ENTER - uzyj    BACKSPACE - wyrzuc 1    DEL - wyrzuc stos", Inv.x + 18 * scale, Inv.y + Inv.h - 48 * scale, Inv.x + Inv.w - 18 * scale, Inv.y + Inv.h - 24 * scale, color("muted", 225), 0.68 * scale, "default-bold", "center")
+    shadowText("I / ESC - zamknij    TAB / klik - kategoria    ENTER - uzyj    BACKSPACE - wyrzuc 1    DEL - wyrzuc stos", Inv.x + 18 * scale, Inv.y + Inv.h - 48 * scale, Inv.x + Inv.w - 18 * scale, Inv.y + Inv.h - 24 * scale, color("muted", 225), 0.68 * scale, "default-bold", "center")
 end
 
 local function requestSync() triggerServerEvent("HeavyRPG:Inventory:request", resourceRoot) end
 
 function Inv.handleClick(button, state, absX, absY)
     if not Inv.visible or button ~= "left" or state ~= "down" then return end
+
+    for _, bounds in ipairs(Inv.categoryBounds or {}) do
+        if absX >= bounds.x and absX <= bounds.x + bounds.w and absY >= bounds.y and absY <= bounds.y + bounds.h then
+            Inv.category, Inv.selected, Inv.scroll = bounds.id, 1, 0
+            cancelEvent()
+            return
+        end
+    end
+
     local scale = uiScale()
     local list = filteredItems()
     local listX, listY, listW = Inv.x + 18 * scale, Inv.y + 108 * scale, Inv.w * 0.58
@@ -213,11 +239,13 @@ function Inv.handleClick(button, state, absX, absY)
     if absX >= listX and absX <= listX + listW and absY >= listY + headerH and absY <= listY + headerH + rows * Inv.rowH then
         local index = Inv.scroll + math.floor((absY - listY - headerH) / Inv.rowH) + 1
         if list[index] then Inv.selected = index end
+        cancelEvent()
     end
 end
 
 local function setVisible(state)
     state = state == true
+    if state and Inv.blocked then return end
     if Inv.visible == state then return end
     Inv.visible = state
     showCursor(state)
@@ -233,6 +261,8 @@ local function setVisible(state)
 end
 
 local function canToggle()
+    if Inv.blocked then return false end
+    if HRP.ClientCharacter and HRP.ClientCharacter.visible then return false end
     if isChatBoxInputActive and isChatBoxInputActive() then return false end
     if isConsoleActive and isConsoleActive() then return false end
     if isMainMenuActive and isMainMenuActive() then return false end
@@ -256,7 +286,7 @@ end
 
 local function selectedAction(action)
     local item = selectedItem()
-    if not item then return end
+    if not item or item.virtual then return end
     if action == "use" and item.usable then triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, item.uid) end
     if action == "drop_one" then triggerServerEvent("HeavyRPG:Inventory:drop", resourceRoot, item.uid, 1) end
     if action == "drop_stack" then triggerServerEvent("HeavyRPG:Inventory:drop", resourceRoot, item.uid, item.quantity or 1) end
@@ -285,6 +315,15 @@ local function handleKey(button, press)
     elseif button == "delete" then selectedAction("drop_stack") cancelEvent() end
 end
 
+local function blockInventory()
+    Inv.blocked = true
+    setVisible(false)
+end
+
+local function unblockInventory()
+    Inv.blocked = false
+end
+
 addEvent("HeavyRPG:Inventory:sync", true)
 addEventHandler("HeavyRPG:Inventory:sync", resourceRoot, function(payload)
     payload = type(payload) == "table" and payload or {}
@@ -297,7 +336,8 @@ end)
 
 addEvent("HeavyRPG:Inventory:open", true)
 addEventHandler("HeavyRPG:Inventory:open", resourceRoot, function() setVisible(true) end)
-addEventHandler("HeavyRPG:Auth:show", resourceRoot, function() setVisible(false) end)
-addEventHandler("HeavyRPG:Character:showCreator", resourceRoot, function() setVisible(false) end)
-addEventHandler("onClientResourceStart", resourceRoot, function() addEventHandler("onClientKey", root, handleKey) end)
+addEventHandler("HeavyRPG:Auth:show", resourceRoot, blockInventory)
+addEventHandler("HeavyRPG:Character:showCreator", resourceRoot, blockInventory)
+addEventHandler("HeavyRPG:Character:hideCreator", resourceRoot, unblockInventory)
+addEventHandler("onClientResourceStart", resourceRoot, function() Inv.blocked = true addEventHandler("onClientKey", root, handleKey) end)
 addEventHandler("onClientResourceStop", resourceRoot, function() removeEventHandler("onClientKey", root, handleKey) setVisible(false) end)
