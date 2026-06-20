@@ -21,6 +21,7 @@
     <script src="server/modules/spawn/main.lua" type="server" />
     <script src="server/modules/survival/main.lua" type="server" />
     <script src="server/modules/bank/main.lua" type="server" />
+    <script src="server/modules/inventory/main.lua" type="server" />
 
     <!-- Server bootstrap must be loaded after modules -->
     <script src="server/core/boot.lua" type="server" />
@@ -31,6 +32,7 @@
     <script src="client/modules/auth/main.lua" type="client" />
     <script src="client/modules/character/main.lua" type="client" />
     <script src="client/modules/hud/main.lua" type="client" />
+    <script src="client/modules/inventory/main.lua" type="client" />
     <script src="client/core/boot.lua" type="client" />
 
     <!-- CEF files -->
@@ -65,4 +67,8 @@
     <export function="withdrawPlayerBankMoney" type="server" />
     <export function="transferPlayerBankMoney" type="server" />
     <export function="getPlayerBankTransactions" type="server" />
+    <export function="givePlayerInventoryItem" type="server" />
+    <export function="takePlayerInventoryItem" type="server" />
+    <export function="getPlayerInventoryItems" type="server" />
+    <export function="getPlayerInventoryWeight" type="server" />
 </meta>

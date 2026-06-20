@@ -14,7 +14,7 @@ HRP.Config = {
     },
 
     modules = {
-        order = { "auth", "character", "spawn", "survival", "bank" }
+        order = { "auth", "character", "spawn", "survival", "bank", "inventory" }
     },
 
     auth = {
@@ -129,6 +129,139 @@ HRP.Config = {
             deposit = "wplac",
             withdraw = "wyplac",
             transfer = "przelew"
+        }
+    },
+
+    inventory = {
+        enabled = true,
+        key = "i",
+        slots = 48,
+        maxWeight = 35,
+        weightPerStrength = 1.5,
+        seedStarterItems = true,
+        commands = {
+            open = "eq"
+        },
+        categories = {
+            { id = "documents", label = "Dokumenty" },
+            { id = "consumable", label = "Jedzenie" },
+            { id = "medical", label = "Medyczne" },
+            { id = "utility", label = "Uzytkowe" },
+            { id = "illegal", label = "Nielegalne" },
+            { id = "misc", label = "Inne" }
+        },
+        starterItems = {
+            { itemId = "id_card", quantity = 1, slot = 1 },
+            { itemId = "phone", quantity = 1, slot = 2 },
+            { itemId = "water_bottle", quantity = 2, slot = 3 },
+            { itemId = "sandwich", quantity = 2, slot = 4 },
+            { itemId = "bandage", quantity = 1, slot = 5 },
+            { itemId = "notebook", quantity = 1, slot = 6 }
+        },
+        items = {
+            id_card = {
+                label = "Dowod osobisty",
+                category = "documents",
+                weight = 0.05,
+                stackable = false,
+                usable = false,
+                flags = "unique,document",
+                description = "Podstawowy dokument postaci. Przydatny przy kontroli, urzedach i frakcjach porzadkowych."
+            },
+            phone = {
+                label = "Telefon komorkowy",
+                category = "utility",
+                weight = 0.20,
+                stackable = false,
+                usable = false,
+                flags = "device",
+                description = "Stary, poobijany telefon. W przyszlosci posluzy do kontaktow, SMS i aplikacji RP."
+            },
+            water_bottle = {
+                label = "Butelka wody",
+                category = "consumable",
+                weight = 0.50,
+                stackable = true,
+                usable = true,
+                consume = true,
+                effect = { needs = { thirst = 26 } },
+                useMessage = "Wypiles butelke wody.",
+                description = "Zwykla woda mineralna. Najprostszy sposob na pragnienie po dluzszym bieganiu."
+            },
+            sandwich = {
+                label = "Kanapka",
+                category = "consumable",
+                weight = 0.35,
+                stackable = true,
+                usable = true,
+                consume = true,
+                effect = { needs = { hunger = 24, energy = 4 } },
+                useMessage = "Zjadles kanapke.",
+                description = "Prosty posilek na szybko. Nie jest luksusem, ale trzyma gracza przy zyciu."
+            },
+            bandage = {
+                label = "Bandaz",
+                category = "medical",
+                weight = 0.18,
+                stackable = true,
+                usable = true,
+                consume = true,
+                effect = { health = 18 },
+                useMessage = "Opatrzyles rany bandazem.",
+                description = "Podstawowy opatrunek. Pomaga przy lekkich obrazeniach, ale nie zastapi medyka."
+            },
+            painkillers = {
+                label = "Tabletki przeciwbolowe",
+                category = "medical",
+                weight = 0.10,
+                stackable = true,
+                usable = true,
+                consume = true,
+                effect = { health = 6, needs = { stress = -12 } },
+                useMessage = "Wziales tabletki przeciwbolowe.",
+                description = "Zmniejszaja bol i stres, ale nie powinny byc traktowane jak pelne leczenie."
+            },
+            cigarette_pack = {
+                label = "Paczka papierosow",
+                category = "utility",
+                weight = 0.08,
+                stackable = true,
+                usable = true,
+                consume = true,
+                effect = { needs = { stress = -8, hygiene = -2 } },
+                useMessage = "Odpaliles papierosa.",
+                description = "Drobny klimatyczny item RP. Uspokaja, ale psuje higiene."
+            },
+            lockpick = {
+                label = "Wytrych",
+                category = "illegal",
+                weight = 0.04,
+                stackable = true,
+                usable = false,
+                flags = "contraband,tool",
+                description = "Nielegalne narzedzie pod przyszle systemy wlaman, drzwi i pojazdow."
+            },
+            notebook = {
+                label = "Notes",
+                category = "misc",
+                weight = 0.12,
+                stackable = false,
+                usable = false,
+                description = "Zniszczony notes na kontakty, dlugi, adresy i prywatne notatki postaci."
+            }
+        },
+        palette = {
+            background = { 18, 16, 13, 232 },
+            panel = { 31, 28, 23, 210 },
+            row = { 45, 39, 31, 120 },
+            rowAlt = { 37, 33, 27, 120 },
+            rowActive = { 96, 78, 45, 205 },
+            line = { 133, 112, 75, 180 },
+            text = { 224, 213, 190 },
+            muted = { 138, 130, 111 },
+            accent = { 190, 157, 87 },
+            danger = { 178, 62, 48 },
+            barBack = { 8, 7, 6, 178 }
         }
     },
 
