@@ -21,6 +21,7 @@
     <script src="server/modules/spawn/main.lua" type="server" />
     <script src="server/modules/survival/main.lua" type="server" />
     <script src="server/modules/bank/main.lua" type="server" />
+    <script src="server/modules/payday/main.lua" type="server" />
     <script src="server/modules/inventory/main.lua" type="server" />
 
     <!-- Server bootstrap must be loaded after modules -->
@@ -69,6 +70,10 @@
     <export function="getPlayerBankTransactions" type="server" />
     <export function="givePlayerInventoryItem" type="server" />
     <export function="takePlayerInventoryItem" type="server" />
+    <export function="takePlayerInventoryItemById" type="server" />
     <export function="getPlayerInventoryItems" type="server" />
+    <export function="getPlayerInventoryItemQuantity" type="server" />
     <export function="getPlayerInventoryWeight" type="server" />
+    <export function="getPlayerCharacterPlaytime" type="server" />
+    <export function="forcePlayerPayday" type="server" />
 </meta>
