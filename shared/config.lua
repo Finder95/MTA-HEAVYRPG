@@ -10,11 +10,11 @@ HRP.Config = {
         -- File is created in this resource. Keep SQLite local to the gamemode.
         path = "data/heavyrpg.db",
         share = 0,
-        schemaVersion = 3
+        schemaVersion = 4
     },
 
     modules = {
-        order = { "auth", "character", "spawn", "survival", "bank", "inventory" }
+        order = { "auth", "character", "spawn", "survival", "bank", "payday", "inventory" }
     },
 
     auth = {
@@ -132,6 +132,16 @@ HRP.Config = {
         }
     },
 
+    payday = {
+        enabled = true,
+        amount = 500,
+        intervalMinutes = 30,
+        tickSeconds = 60,
+        commands = {
+            force = "payday"
+        }
+    },
+
     inventory = {
         enabled = true,
         key = "i",
@@ -140,9 +150,13 @@ HRP.Config = {
         weightPerStrength = 1.5,
         seedStarterItems = true,
         commands = {
-            open = "eq"
+            open = "eq",
+            give = "dajitem",
+            take = "zabierzitem",
+            list = "itemy"
         },
         categories = {
+            { id = "money", label = "Gotowka" },
             { id = "documents", label = "Dokumenty" },
             { id = "consumable", label = "Jedzenie" },
             { id = "medical", label = "Medyczne" },
@@ -159,6 +173,16 @@ HRP.Config = {
             { itemId = "notebook", quantity = 1, slot = 6 }
         },
         items = {
+            cash = {
+                label = "Gotowka",
+                category = "money",
+                weight = 0,
+                stackable = false,
+                usable = false,
+                virtual = true,
+                flags = "money,virtual",
+                description = "Pieniadze trzymane przy sobie, poza kontem bankowym. Aktualna kwota jest pobierana bezposrednio z kieszeni postaci."
+            },
             id_card = {
                 label = "Dowod osobisty",
                 category = "documents",
