@@ -49,6 +49,10 @@ local function getCharacterId(player)
     return tonumber(getElementData(player, "hrp:character:id"))
 end
 
+local function getAccountId(player)
+    return tonumber(getElementData(player, "hrp:account:id")) or (HRP.Auth and HRP.Auth.Session and HRP.Auth.Session.getAccountId(player))
+end
+
 local function getDefinition(itemId)
     return definitions()[tostring(itemId or "")]
 end
@@ -61,6 +65,12 @@ end
 
 local function int(value, fallback)
     return math.floor(number(value, fallback or 0))
+end
+
+local function money(value)
+    value = int(value, 0)
+    if value < 0 then return 0 end
+    return value
 end
 
 local function clampQuality(value)
@@ -85,6 +95,12 @@ end
 local function jsonEncode(value)
     if type(value) ~= "table" then return "{}" end
     return toJSON(value, true) or "{}"
+end
+
+local function isEmptyMetadata(value)
+    if type(value) ~= "table" then return true end
+    for _ in pairs(value) do return false end
+    return true
 end
 
 local function parseFlags(flags)
@@ -118,8 +134,33 @@ local function publicItem(row)
         slot = int(row.slot, 0),
         usable = def.usable == true,
         stackable = def.stackable ~= false,
+        virtual = false,
         createdAt = tonumber(row.created_at) or 0,
         updatedAt = tonumber(row.updated_at) or 0
+    }
+end
+
+local function cashItem(player)
+    local def = getDefinition("cash") or {}
+    local cash = isElement(player) and money(getPlayerMoney(player)) or 0
+    return {
+        uid = -1,
+        itemId = "cash",
+        label = tostring(def.label or "Gotowka"),
+        description = tostring(def.description or "Pieniadze trzymane przy sobie."),
+        category = tostring(def.category or "money"),
+        quantity = cash,
+        weight = 0,
+        totalWeight = 0,
+        quality = 100,
+        state = "$" .. tostring(cash),
+        flags = parseFlags(def.flags or "money,virtual"),
+        slot = -100,
+        usable = false,
+        stackable = false,
+        virtual = true,
+        createdAt = 0,
+        updatedAt = now()
     }
 end
 
@@ -133,9 +174,18 @@ end
 local function currentWeight(items)
     local total = 0
     for _, item in ipairs(items or {}) do
-        total = total + number(item.totalWeight, 0)
+        if not item.virtual then total = total + number(item.totalWeight, 0) end
     end
     return total
+end
+
+local function visibleItems(player, items)
+    local out = { cashItem(player) }
+    for _, item in ipairs(items or {}) do
+        out[#out + 1] = item
+    end
+    table.sort(out, sortItems)
+    return out
 end
 
 function Inventory.getMaxWeight(player)
@@ -150,7 +200,7 @@ local function buildPayload(player)
     local weight = currentWeight(state.items)
 
     return {
-        items = state.items,
+        items = visibleItems(player, state.items),
         currentWeight = weight,
         maxWeight = maxWeight,
         slots = number(cfg().slots, 48),
@@ -170,6 +220,22 @@ end
 local function notify(player, message, r, g, b)
     if not isElement(player) then return end
     outputChatBox("[EQ] " .. tostring(message), player, r or 210, g or 198, b or 164)
+end
+
+local function saveCharacterCash(player)
+    local characterId = getCharacterId(player)
+    if not characterId then return false end
+    return HRP.DB.exec([[UPDATE characters SET cash = ?, updated_at = ? WHERE id = ?]], {
+        money(getPlayerMoney(player)),
+        now(),
+        characterId
+    })
+end
+
+local function syncMoneySystems(player)
+    saveCharacterCash(player)
+    if HRP.Bank and HRP.Bank.sync then HRP.Bank.sync(player) end
+    Inventory.sync(player)
 end
 
 local function setState(player, rows)
@@ -198,6 +264,7 @@ end
 local function insertItemRow(characterId, itemId, qty, metadata, quality, slot)
     local def = getDefinition(itemId)
     if not def then return false, "Nieznany przedmiot: " .. tostring(itemId) end
+    if def.virtual then return false, "Tego przedmiotu nie zapisuje sie w tabeli." end
 
     local timestamp = now()
     return HRP.DB.exec([[INSERT INTO character_inventory
@@ -255,7 +322,7 @@ end
 
 local function findItem(player, uid)
     uid = tonumber(uid)
-    if not uid then return nil end
+    if not uid or uid < 1 then return nil end
     local state = inventories[player]
     if not state then return nil end
 
@@ -266,6 +333,33 @@ local function findItem(player, uid)
     end
 
     return nil
+end
+
+local function findStack(player, itemId, quality, stateName)
+    local state = inventories[player]
+    if not state then return nil end
+    quality = clampQuality(quality)
+    stateName = tostring(stateName or "normal")
+
+    for _, item in ipairs(state.items or {}) do
+        if item.itemId == itemId and item.stackable and item.quality == quality and item.state == stateName then
+            return item
+        end
+    end
+
+    return nil
+end
+
+function Inventory.getItemQuantity(player, itemId)
+    itemId = tostring(itemId or "")
+    if itemId == "cash" then return money(getPlayerMoney(player)) end
+
+    local total = 0
+    local state = inventories[player]
+    for _, item in ipairs((state and state.items) or {}) do
+        if item.itemId == itemId then total = total + quantity(item.quantity) end
+    end
+    return total
 end
 
 local function removeQuantity(player, uid, amount)
@@ -295,18 +389,41 @@ function Inventory.add(player, itemId, qty, metadata, quality)
     local characterId = getCharacterId(player)
     if not characterId then return false, "Brak aktywnej postaci." end
 
+    itemId = tostring(itemId or "")
+    qty = quantity(qty)
+
+    if itemId == "cash" then
+        givePlayerMoney(player, qty)
+        syncMoneySystems(player)
+        return true, "Dodano gotowke: $" .. tostring(qty) .. "."
+    end
+
     local def = getDefinition(itemId)
     if not def then return false, "Nieznany przedmiot." end
+    if def.virtual then return false, "Tego przedmiotu nie mozna dodac jako zwykly item." end
 
-    qty = quantity(qty)
     local payload = buildPayload(player)
     local addedWeight = itemWeight(itemId, 0) * qty
     if payload.currentWeight + addedWeight > payload.maxWeight then
         return false, "Ekwipunek jest za ciezki."
     end
 
-    local ok = insertItemRow(characterId, itemId, qty, metadata, quality or 100, 0)
-    if not ok then return false, "Nie udalo sie dodac przedmiotu." end
+    local stateName = tostring((metadata and metadata.state) or "normal")
+    local finalQuality = clampQuality(quality)
+    local stack = (def.stackable ~= false and isEmptyMetadata(metadata)) and findStack(player, itemId, finalQuality, stateName) or nil
+    if stack then
+        if not HRP.DB.exec([[UPDATE character_inventory SET quantity = quantity + ?, updated_at = ? WHERE id = ? AND character_id = ?]], {
+            qty,
+            now(),
+            stack.uid,
+            characterId
+        }) then
+            return false, "Nie udalo sie powiekszyc stosu przedmiotu."
+        end
+    else
+        local ok = insertItemRow(characterId, itemId, qty, metadata, finalQuality, 0)
+        if not ok then return false, "Nie udalo sie dodac przedmiotu." end
+    end
 
     Inventory.load(player, false)
     return true, "Dodano: " .. tostring(def.label or itemId) .. " x" .. tostring(qty) .. "."
@@ -316,9 +433,43 @@ function Inventory.take(player, uid, qty)
     return removeQuantity(player, uid, qty)
 end
 
+function Inventory.takeByItemId(player, itemId, qty)
+    if not isElement(player) then return false, "Gracz offline." end
+    itemId = tostring(itemId or "")
+    qty = quantity(qty)
+
+    if itemId == "cash" then
+        if money(getPlayerMoney(player)) < qty then return false, "Gracz nie ma tyle gotowki przy sobie." end
+        takePlayerMoney(player, qty)
+        syncMoneySystems(player)
+        return true, "Zabrano gotowke: $" .. tostring(qty) .. "."
+    end
+
+    if Inventory.getItemQuantity(player, itemId) < qty then
+        return false, "Gracz nie ma wymaganej ilosci tego przedmiotu."
+    end
+
+    local remaining = qty
+    local state = inventories[player]
+    for _, item in ipairs((state and state.items) or {}) do
+        if item.itemId == itemId and remaining > 0 then
+            local taken = math.min(remaining, item.quantity)
+            local ok, reason = removeQuantity(player, item.uid, taken)
+            if not ok then return false, reason end
+            remaining = remaining - taken
+        end
+    end
+
+    return true, "Zabrano " .. tostring(itemId) .. " x" .. tostring(qty) .. "."
+end
+
 function Inventory.getItems(player)
     local state = inventories[player]
     return state and state.items or {}
+end
+
+function Inventory.getVisibleItems(player)
+    return visibleItems(player, Inventory.getItems(player))
 end
 
 function Inventory.getWeight(player)
@@ -346,6 +497,7 @@ local function applyItemEffect(player, item)
 
     if effect.cash then
         givePlayerMoney(player, math.max(0, int(effect.cash, 0)))
+        syncMoneySystems(player)
         used = true
     end
 
@@ -403,14 +555,78 @@ local function detachPlayer(player)
 end
 
 local function handleOpenCommand(player)
+    if not getCharacterId(player) then
+        notify(player, "Najpierw wybierz postac.", 230, 90, 80)
+        return
+    end
     Inventory.sync(player)
     triggerClientEvent(player, "HeavyRPG:Inventory:open", resourceRoot)
+end
+
+local function getAdminLevel(player)
+    local account = HRP.Auth and HRP.Auth.Session and HRP.Auth.Session.getAccount(player)
+    return tonumber(account and account.adminLevel) or 0
+end
+
+local function findPlayer(query)
+    query = tostring(query or "")
+    if #query == 0 then return nil end
+
+    local numeric = tonumber(query)
+    for _, player in ipairs(getElementsByType("player")) do
+        if numeric and getCharacterId(player) == numeric then return player end
+    end
+
+    local lowered = HRP.Utils.lower(query)
+    for _, player in ipairs(getElementsByType("player")) do
+        if HRP.Utils.lower(HRP.Utils.safePlayerName(player)):find(lowered, 1, true) then
+            return player
+        end
+    end
+
+    return nil
+end
+
+local function handleGiveCommand(player, _, targetQuery, itemId, qty, quality)
+    if getAdminLevel(player) <= 0 then notify(player, "Brak uprawnien.", 230, 90, 80) return end
+    local target = findPlayer(targetQuery)
+    if not target then notify(player, "Uzycie: /" .. ((cfg().commands and cfg().commands.give) or "dajitem") .. " <gracz/id_postaci> <item_id|cash> [ilosc] [jakosc]", 230, 90, 80) return end
+
+    local ok, message = Inventory.add(target, itemId, qty or 1, nil, quality or 100)
+    notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    if ok and target ~= player then notify(target, message, 180, 220, 170) end
+end
+
+local function handleTakeCommand(player, _, targetQuery, itemKey, qty)
+    if getAdminLevel(player) <= 0 then notify(player, "Brak uprawnien.", 230, 90, 80) return end
+    local target = findPlayer(targetQuery)
+    if not target then notify(player, "Uzycie: /" .. ((cfg().commands and cfg().commands.take) or "zabierzitem") .. " <gracz/id_postaci> <uid|item_id|cash> [ilosc]", 230, 90, 80) return end
+
+    local ok, message
+    if tonumber(itemKey) then
+        ok, message = Inventory.take(target, tonumber(itemKey), qty or 1)
+    else
+        ok, message = Inventory.takeByItemId(target, itemKey, qty or 1)
+    end
+
+    notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    if ok and target ~= player then notify(target, message, 230, 180, 120) end
+end
+
+local function handleListCommand(player)
+    if getAdminLevel(player) <= 0 then notify(player, "Brak uprawnien.", 230, 90, 80) return end
+    local ids = {}
+    for itemId, def in pairs(definitions()) do
+        if not def.virtual then ids[#ids + 1] = itemId end
+    end
+    table.sort(ids)
+    notify(player, "Dostepne itemy: " .. table.concat(ids, ", ") .. ", cash")
 end
 
 addEvent("HeavyRPG:Inventory:request", true)
 addEventHandler("HeavyRPG:Inventory:request", resourceRoot, function()
     local player = client
-    if not isElement(player) then return end
+    if not isElement(player) or not getCharacterId(player) then return end
     Inventory.load(player, false)
 end)
 
@@ -435,10 +651,14 @@ local module = {}
 function module.onStart()
     if not ensureSchema() then return end
 
+    local commands = cfg().commands or {}
     addEventHandler("HeavyRPG:Character:onPlayerReady", resourceRoot, attachPlayer)
     addEventHandler("onPlayerQuit", root, function() detachPlayer(source) end)
-    addCommandHandler((cfg().commands and cfg().commands.open) or "eq", handleOpenCommand)
+    addCommandHandler(commands.open or "eq", handleOpenCommand)
     addCommandHandler("ekwipunek", handleOpenCommand)
+    addCommandHandler(commands.give or "dajitem", handleGiveCommand)
+    addCommandHandler(commands.take or "zabierzitem", handleTakeCommand)
+    addCommandHandler(commands.list or "itemy", handleListCommand)
 
     HRP.Logger.info("inventory", "Tekstowy system ekwipunku DX/SQLite gotowy.")
 end
@@ -451,8 +671,16 @@ function takePlayerInventoryItem(player, uid, qty)
     return Inventory.take(player, uid, qty)
 end
 
+function takePlayerInventoryItemById(player, itemId, qty)
+    return Inventory.takeByItemId(player, itemId, qty)
+end
+
 function getPlayerInventoryItems(player)
     return Inventory.getItems(player)
+end
+
+function getPlayerInventoryItemQuantity(player, itemId)
+    return Inventory.getItemQuantity(player, itemId)
 end
 
 function getPlayerInventoryWeight(player)
