@@ -45,32 +45,24 @@ local function matrixPoint(matrix, lx, ly, lz)
         lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
 end
 
+local function vehicleWindshieldOffset(vehicle)
+    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
+    if not minX then return 0, 1.25, 0.55 end
+
+    local length = math.max(0.1, maxY - minY)
+    local height = math.max(0.1, maxZ - minZ)
+    local y = maxY - math.max(0.35, length * 0.20)
+    local z = minZ + height * 0.64
+    return 0, y, z
+end
+
 local function vehicleNotePoint(player, vehicle)
     local vx, vy, vz = getElementPosition(vehicle)
-    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
     local matrix = getElementMatrix(vehicle)
-    if not minX or not matrix then return vx, vy, vz + 1.05 end
+    if not matrix then return vx, vy, vz + 1.05 end
 
-    local px, py, pz = getElementPosition(player)
-    local z = minZ + (maxZ - minZ) * 0.68
-    local candidates = {
-        { 0, maxY * 0.56, z },
-        { minX * 0.28, maxY * 0.56, z },
-        { maxX * 0.28, maxY * 0.56, z },
-        { 0, minY * 0.56, z },
-        { minX * 0.28, minY * 0.56, z },
-        { maxX * 0.28, minY * 0.56, z }
-    }
-
-    local best = nil
-    for _, candidate in ipairs(candidates) do
-        local wx, wy, wz = matrixPoint(matrix, candidate[1], candidate[2], candidate[3])
-        local distance = getDistanceBetweenPoints3D(px, py, pz, wx, wy, wz)
-        if not best or distance < best.distance then best = { x = wx, y = wy, z = wz, distance = distance } end
-    end
-
-    if best then return best.x, best.y, best.z end
-    return vx, vy, vz + 1.05
+    local x, y, z = vehicleWindshieldOffset(vehicle)
+    return matrixPoint(matrix, x, y, z)
 end
 
 local function normalizeNotebook(metadata)
@@ -180,7 +172,10 @@ end
 local function destroyPlacedNote(noteId)
     local note = placedNotes[tostring(noteId)]
     if not note then return end
-    if note.marker and isElement(note.marker) then destroyElement(note.marker) end
+    if note.marker and isElement(note.marker) then
+        if HRP.InventoryNoteVisual and HRP.InventoryNoteVisual.destroy then HRP.InventoryNoteVisual.destroy(note.marker) end
+        destroyElement(note.marker)
+    end
     placedNotes[tostring(noteId)] = nil
 end
 
@@ -195,6 +190,7 @@ local function createPlacedNote(note)
         if note.vehicle and isElement(note.vehicle) then
             attachElements(note.marker, note.vehicle, note.attachX or 0, note.attachY or 1.9, note.attachZ or 0.25, 0, 0, 0)
         end
+        if HRP.InventoryNoteVisual and HRP.InventoryNoteVisual.ensure then HRP.InventoryNoteVisual.ensure(note.marker, note) end
         addEventHandler("onMarkerHit", note.marker, function(hitElement, matchingDimension)
             if matchingDimension and isElement(hitElement) and getElementType(hitElement) == "player" then
                 local x, y, z = notePosition(note)
