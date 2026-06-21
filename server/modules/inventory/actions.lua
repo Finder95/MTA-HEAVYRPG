@@ -75,17 +75,6 @@ local function findNearestPlayer(player, maxDistance)
     return best
 end
 
-local function itemSellPrice(item)
-    if not item then return 0 end
-    local defs = (HRP.Config.inventory and HRP.Config.inventory.items) or {}
-    local def = defs[item.itemId] or {}
-    if def.sellPrice then return money(def.sellPrice) end
-    local categoryPrices = { consumable = 15, medical = 35, utility = 25, documents = 5, illegal = 60, misc = 10 }
-    local base = categoryPrices[item.category] or 10
-    local quality = math.max(10, math.min(100, tonumber(item.quality) or 100)) / 100
-    return math.max(1, math.floor(base * quality))
-end
-
 local function destroyCashDrop(dropId)
     local drop = cashDrops[tostring(dropId)]
     if not drop then return end
@@ -250,15 +239,34 @@ local function giveItem(player, uid, amount)
     return true, "Przekazano: " .. tostring(item.label) .. " x" .. tostring(amount) .. "."
 end
 
-local function sellItem(player, uid, amount)
+local function sellItem(player, uid, amount, price)
     local item = findVisibleItem(player, uid)
     if not item or item.virtual then return false, "Tego przedmiotu nie mozna sprzedac." end
+    local target = findNearestPlayer(player, 3.0)
+    if not target then return false, "Nie ma nikogo blisko, komu mozna sprzedac przedmiot." end
     amount = math.min(quantity(amount), tonumber(item.quantity) or 1)
-    local price = itemSellPrice(item) * amount
+    price = money(price)
+    if price <= 0 then return false, "Podaj cene sprzedazy." end
+    if money(getPlayerMoney(target)) < price then return false, "Kupujacy nie ma tyle gotowki przy sobie." end
+
     local ok, message = HRP.Inventory.take(player, item.uid, amount)
     if not ok then return false, message end
+    takePlayerMoney(target, price)
     givePlayerMoney(player, price)
     syncMoney(player)
+    syncMoney(target)
+
+    local added, addMessage = HRP.Inventory.add(target, item.itemId, amount, item.metadata, item.quality)
+    if not added then
+        takePlayerMoney(player, price)
+        givePlayerMoney(target, price)
+        syncMoney(player)
+        syncMoney(target)
+        HRP.Inventory.add(player, item.itemId, amount, item.metadata, item.quality)
+        return false, addMessage or "Nie udalo sie przekazac przedmiotu kupujacemu."
+    end
+
+    notify(target, "Kupiles: " .. tostring(item.label) .. " x" .. tostring(amount) .. " za $" .. tostring(price) .. ".", 180, 220, 170)
     return true, "Sprzedano: " .. tostring(item.label) .. " x" .. tostring(amount) .. " za $" .. tostring(price) .. "."
 end
 
@@ -296,7 +304,7 @@ addEventHandler("HeavyRPG:Inventory:menuAction", resourceRoot, function(action, 
     elseif action == "item_drop" then
         ok, message = HRP.Inventory.drop(player, tonumber(payload.uid), payload.amount or 1)
     elseif action == "item_sell" then
-        ok, message = sellItem(player, payload.uid, payload.amount)
+        ok, message = sellItem(player, payload.uid, payload.amount, payload.price)
     elseif action == "notebook_save" then
         ok, message = saveNotebook(player, payload.uid, payload.text)
     elseif action == "phone_open" and HRP.Phone and HRP.Phone.openPanel then
