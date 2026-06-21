@@ -6,6 +6,11 @@
     function unwrap(value) { if (isArray(value) && value.length === 1 && value[0] && typeof value[0] === 'object') return value[0]; return value; }
     function emit(name, payload) { if (window.mta && typeof window.mta.triggerEvent === 'function') window.mta.triggerEvent(name, JSON.stringify(payload || {})); else console.log('[phone]', name, payload); }
     function digits(value) { return String(value || '').replace(/\D/g, '').slice(0, 12); }
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
 
     function setView(view, push) {
         view = view || 'home';
@@ -36,7 +41,8 @@
         state.messages.slice(0, 20).forEach(function (msg) {
             var div = document.createElement('div');
             div.className = 'msg ' + (msg.incoming ? 'in' : 'out');
-            div.innerHTML = '<small>' + (msg.incoming ? 'Od ' + msg.from : 'Do ' + msg.to) + '</small>' + String(msg.body || '');
+            var caption = msg.incoming ? 'Od ' + String(msg.from || '') : 'Do ' + String(msg.to || '');
+            div.innerHTML = '<small>' + escapeHtml(caption) + '</small>' + escapeHtml(msg.body || '');
             box.appendChild(div);
         });
     }
@@ -51,7 +57,7 @@
         state.contacts.forEach(function (contact) {
             var row = document.createElement('div');
             row.className = 'contact';
-            row.innerHTML = '<span><strong>' + String(contact.name || 'Kontakt') + '</strong><small>' + String(contact.number || '') + '</small></span><button>SMS</button>';
+            row.innerHTML = '<span><strong>' + escapeHtml(contact.name || 'Kontakt') + '</strong><small>' + escapeHtml(contact.number || '') + '</small></span><button>SMS</button>';
             row.querySelector('button').onclick = function () {
                 $('#smsNumber').value = contact.number || '';
                 setView('sms');
