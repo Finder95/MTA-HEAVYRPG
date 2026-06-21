@@ -1,11 +1,18 @@
 (function () {
-    var state = { view: 'home', history: ['home'], number: '555000000', contacts: [], messages: [] };
+    var state = { view: 'home', history: ['home'], number: '555000000', contacts: [], messages: [], time: null, theme: 'forest' };
+    var themes = [
+        { id: 'night', label: 'Noc' },
+        { id: 'forest', label: 'Las' },
+        { id: 'city', label: 'Miasto' },
+        { id: 'clean', label: 'Czysty' }
+    ];
     function $(selector) { return document.querySelector(selector); }
     function $$(selector, root) { return Array.prototype.slice.call((root || document).querySelectorAll(selector)); }
     function isArray(value) { return Object.prototype.toString.call(value) === '[object Array]'; }
     function unwrap(value) { if (isArray(value) && value.length === 1 && value[0] && typeof value[0] === 'object') return value[0]; return value; }
     function emit(name, payload) { if (window.mta && typeof window.mta.triggerEvent === 'function') window.mta.triggerEvent(name, JSON.stringify(payload || {})); else console.log('[phone]', name, payload); }
     function digits(value) { return String(value || '').replace(/\D/g, '').slice(0, 12); }
+    function pad(value) { value = String(value || 0); return value.length < 2 ? '0' + value : value; }
     function escapeHtml(value) {
         return String(value || '').replace(/[&<>"']/g, function (ch) {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
@@ -24,11 +31,35 @@
         setView(state.history[state.history.length - 1] || 'home', false);
     }
 
+    function setTheme(theme) {
+        state.theme = theme || 'forest';
+        try { localStorage.setItem('hrp-phone-theme', state.theme); } catch (e) {}
+        var screen = $('#screen');
+        if (screen) screen.className = 'screen theme-' + state.theme;
+        $$('.theme-dot').forEach(function (button) { button.classList.toggle('active', button.dataset.theme === state.theme); });
+    }
+
+    function renderThemes() {
+        var row = $('#themeRow');
+        if (!row) return;
+        row.innerHTML = '';
+        themes.forEach(function (theme) {
+            var button = document.createElement('button');
+            button.className = 'theme-dot theme-' + theme.id + '-dot';
+            button.dataset.theme = theme.id;
+            button.title = theme.label;
+            button.onclick = function () { setTheme(theme.id); };
+            row.appendChild(button);
+        });
+        setTheme(state.theme);
+    }
+
     function renderChrome() {
-        $('#homeNumber').textContent = state.number || '555000000';
-        $('#statusNumber').textContent = state.number || '555000000';
-        var d = new Date();
-        $('#clock').textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        var time = state.time || {};
+        var hour = typeof time.hour === 'number' ? time.hour : 0;
+        var minute = typeof time.minute === 'number' ? time.minute : 0;
+        $('#clock').textContent = pad(hour) + ':' + pad(minute);
+        $('#timezone').textContent = time.timezone || 'CEST';
     }
 
     function renderMessages() {
@@ -56,7 +87,7 @@
         }
         state.contacts.forEach(function (contact) {
             var row = document.createElement('div');
-            row.className = 'contact';
+            row.className = 'contact' + (contact.system ? ' system' : '') + (contact.placeholder ? ' placeholder' : '');
             row.innerHTML = '<span><strong>' + escapeHtml(contact.name || 'Kontakt') + '</strong><small>' + escapeHtml(contact.number || '') + '</small></span><button>SMS</button>';
             row.querySelector('button').onclick = function () {
                 $('#smsNumber').value = contact.number || '';
@@ -71,6 +102,7 @@
         state.number = data.number || state.number;
         state.contacts = isArray(data.contacts) ? data.contacts : [];
         state.messages = isArray(data.messages) ? data.messages : [];
+        state.time = data.time || state.time;
         renderChrome();
         renderMessages();
         renderContacts();
@@ -122,11 +154,14 @@
             if (name === 'phone:open') { applyData(detail); setView('home', false); }
             if (name === 'phone:data') applyData(detail);
             if (name === 'phone:callStatus') $('#callHint').textContent = detail.message || 'Polaczenie zakonczone.';
+            if (name === 'phone:back') goBack();
         }
     };
 
-    setInterval(renderChrome, 10000);
+    try { state.theme = localStorage.getItem('hrp-phone-theme') || state.theme; } catch (e) {}
+    renderThemes();
     renderChrome();
     renderMessages();
     renderContacts();
+    setInterval(function () { emit('HeavyRPG:UI:phone:request', {}); }, 60000);
 }());
