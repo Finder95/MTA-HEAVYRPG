@@ -14,7 +14,10 @@ HRP.ClientAdmin = HRP.ClientAdmin or {
     h = 860,
     lastX = 0,
     lastY = 0,
-    spectating = false
+    spectating = false,
+    inputModeLocked = false,
+    previousInputMode = "allow_binds",
+    keyAttached = false
 }
 
 local Panel = HRP.ClientAdmin
@@ -37,6 +40,19 @@ local function updateBounds()
     if Panel.h > Panel.sy - 48 then Panel.h = Panel.sy - 48 end
     Panel.x = math.floor((Panel.sx - Panel.w) / 2)
     Panel.y = math.floor((Panel.sy - Panel.h) / 2)
+end
+
+local function setPanelInputMode(state)
+    if not guiSetInputMode then return end
+    if state then
+        if Panel.inputModeLocked then return end
+        Panel.previousInputMode = guiGetInputMode and guiGetInputMode() or "allow_binds"
+        guiSetInputMode("no_binds")
+        Panel.inputModeLocked = true
+    elseif Panel.inputModeLocked then
+        guiSetInputMode(Panel.previousInputMode or "allow_binds")
+        Panel.inputModeLocked = false
+    end
 end
 
 local function inside(x, y) return x >= Panel.x and x <= Panel.x + Panel.w and y >= Panel.y and y <= Panel.y + Panel.h end
@@ -99,23 +115,37 @@ local function wheel(key)
     injectBrowserMouseWheel(Panel.browser, key == "mouse_wheel_up" and 1 or -1, 0)
 end
 
+local function panelKey(button, press)
+    if not Panel.visible then return end
+    local key = tostring(button or ""):lower()
+    if press and (key == "escape" or key == "f2") then
+        setVisible(false)
+        cancelEvent()
+    elseif key == "t" or key == "y" or key == "u" then
+        cancelEvent()
+    end
+end
+
 function setVisible(state)
     state = state == true
     if Panel.visible == state then return end
     Panel.visible = state
     showCursor(state)
+    setPanelInputMode(state)
     if Panel.browser then focusBrowser(state and Panel.browser or nil) end
     if state then
         updateBounds()
         addEventHandler("onClientRender", root, render)
         addEventHandler("onClientCursorMove", root, cursorMove)
         addEventHandler("onClientClick", root, cursorClick)
+        if not Panel.keyAttached then addEventHandler("onClientKey", root, panelKey) Panel.keyAttached = true end
         bindKey("mouse_wheel_up", "down", wheel)
         bindKey("mouse_wheel_down", "down", wheel)
     else
         removeEventHandler("onClientRender", root, render)
         removeEventHandler("onClientCursorMove", root, cursorMove)
         removeEventHandler("onClientClick", root, cursorClick)
+        if Panel.keyAttached then removeEventHandler("onClientKey", root, panelKey) Panel.keyAttached = false end
         unbindKey("mouse_wheel_up", "down", wheel)
         unbindKey("mouse_wheel_down", "down", wheel)
     end
@@ -156,13 +186,6 @@ local function togglePanelCommand()
         return
     end
     triggerServerEvent("HeavyRPG:Admin:openRequest", resourceRoot)
-end
-
-local function closeKey()
-    if Panel.visible then
-        closePanel()
-        cancelEvent()
-    end
 end
 
 addEvent("HeavyRPG:Admin:open", true)
@@ -207,9 +230,6 @@ addEventHandler("HeavyRPG:UI:admin:advanced", root, function(action, payload)
 end)
 
 addCommandHandler("apanel", togglePanelCommand)
-bindKey("escape", "down", closeKey)
-bindKey("backspace", "down", closeKey)
-bindKey("F2", "down", closeKey)
 
 bindKey(HRP.Config.ui and HRP.Config.ui.toggleDevToolsKey or "F6", "down", function()
     if Panel.visible and Panel.browser then toggleBrowserDevTools(Panel.browser, true) end
@@ -218,4 +238,5 @@ end)
 addEventHandler("onClientResourceStop", resourceRoot, function()
     if Panel.spectating then setCameraTarget(localPlayer) end
     setVisible(false)
+    setPanelInputMode(false)
 end)
