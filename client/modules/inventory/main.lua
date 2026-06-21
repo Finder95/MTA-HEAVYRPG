@@ -45,7 +45,7 @@ local function layout()
     local s, sx, sy = scale()
     Inv.sx, Inv.sy = sx, sy
     Inv.w = math.floor(clamp(980 * s, 820, sx - 64))
-    Inv.h = math.floor(clamp(620 * s, 520, sy - 64))
+    Inv.h = math.floor(clamp(640 * s, 540, sy - 64))
     Inv.x = math.floor((sx - Inv.w) / 2)
     Inv.y = math.floor((sy - Inv.h) / 2)
     Inv.rowH = math.floor(30 * s)
@@ -76,6 +76,47 @@ local function selectedItem() local list = filtered() normalize(list) return lis
 local function closeAction() Inv.action, Inv.prompt, Inv.editing, Inv.editText, Inv.actionBounds = nil, nil, false, "", {} end
 local function add(actions, id, label, opts) opts = opts or {} opts.id = id opts.label = label actions[#actions + 1] = opts end
 
+local function notebookData(item)
+    local metadata = type(item and item.metadata) == "table" and item.metadata or {}
+    local book = type(metadata.notebook) == "table" and metadata.notebook or {}
+    local pages, rawPages = {}, type(book.pages) == "table" and book.pages or {}
+    for i, page in ipairs(rawPages) do
+        pages[#pages + 1] = {
+            title = tostring(page.title or ("Strona " .. tostring(i))),
+            body = tostring(page.body or ""),
+            pinned = page.pinned == true
+        }
+    end
+    if #pages == 0 then
+        pages[1] = { title = "Strona 1", body = tostring(metadata.note or ""), pinned = false }
+    end
+    local activePage = clamp(book.activePage or 1, 1, #pages)
+    return { title = tostring(book.title or "Notes"), pages = pages, activePage = activePage }
+end
+
+local function notebookCurrent(action)
+    local book = action and action.notebook or { pages = { { title = "Strona 1", body = "" } }, activePage = 1 }
+    local pageNo = clamp(action.page or book.activePage or 1, 1, #(book.pages or {}))
+    local page = book.pages[pageNo] or { title = "Strona " .. tostring(pageNo), body = "" }
+    return book, page, pageNo
+end
+
+local function refreshNotebookPanel()
+    local action = Inv.action
+    if not action or not action.notebook then return end
+    local book, page, pageNo = notebookCurrent(action)
+    local count = #(book.pages or {})
+    local state = page.pinned and "Przypieta" or "Zwykla"
+    action.title = tostring(book.title or "Notes") .. " - strona " .. tostring(pageNo) .. "/" .. tostring(count)
+    action.lines = {
+        "Tytul: " .. tostring(page.title or ("Strona " .. tostring(pageNo))),
+        "Status: " .. state .. " | limit strony: 1200 znakow",
+        "Stare notatki zostana automatycznie przeniesione do pierwszej strony."
+    }
+    action.text = tostring(page.body or "")
+    if not Inv.editing then Inv.editText = action.text end
+end
+
 local function makeAction(item)
     if not item then return nil end
     local actions, lines = {}, {}
@@ -86,7 +127,22 @@ local function makeAction(item)
         return { title = "Gotowka", item = item, lines = lines, actions = actions }
     end
     if item.itemId == "notebook" then
-        return { title = "Notes", item = item, lines = { "Edytuj prywatna notatke tego przedmiotu." }, editor = true, text = tostring((item.metadata and item.metadata.note) or ""), actions = { { id = "notebook_edit", label = "Edytuj notatke" }, { id = "notebook_save", label = "Zapisz notatke" }, { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 }, { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 } } }
+        local book = notebookData(item)
+        actions = {
+            { id = "notebook_edit", label = "Edytuj strone" },
+            { id = "notebook_save_page", label = "Zapisz strone" },
+            { id = "notebook_prev", label = "Poprzednia strona" },
+            { id = "notebook_next", label = "Nastepna strona" },
+            { id = "notebook_new_page", label = "Dodaj strone" },
+            { id = "notebook_toggle_pin", label = "Przypnij / odepnij" },
+            { id = "notebook_delete_page", label = "Usun strone" },
+            { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 },
+            { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 }
+        }
+        local action = { title = "Notes", item = item, notebook = book, page = book.activePage, editor = true, text = "", lines = {}, actions = actions }
+        Inv.action = action
+        refreshNotebookPanel()
+        return action
     end
     if item.itemId == "phone" then
         return { title = "Telefon", item = item, lines = { "Uzyj telefonu, aby otworzyc osobny smartfon CEF." }, actions = { { id = "phone_open", label = "Uzyj" }, { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 }, { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 } } }
@@ -156,8 +212,47 @@ end
 local function runAction(btn)
     if not btn or btn.id == "noop" then return end
     if btn.prompt then startPrompt(btn) return end
-    if btn.id == "notebook_edit" then Inv.editing = true Inv.editText = tostring((Inv.action and Inv.action.text) or "") return end
-    if btn.id == "notebook_save" then triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_save", toJSON({ uid = Inv.action.item.uid, text = Inv.editText or "" }, true)) Inv.editing = false return end
+    if not Inv.action then return end
+    if btn.id == "notebook_edit" then Inv.editing = true local _, page = notebookCurrent(Inv.action) Inv.editText = tostring(page.body or "") return end
+    if btn.id == "notebook_save" or btn.id == "notebook_save_page" then
+        local _, page, pageNo = notebookCurrent(Inv.action)
+        page.body = string.sub(tostring(Inv.editText or ""), 1, 1200)
+        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_save_page", toJSON({ uid = Inv.action.item.uid, page = pageNo, text = page.body }, true))
+        Inv.editing = false
+        refreshNotebookPanel()
+        return
+    end
+    if btn.id == "notebook_prev" then Inv.editing = false Inv.action.page = clamp((Inv.action.page or 1) - 1, 1, #(Inv.action.notebook.pages or {})) refreshNotebookPanel() return end
+    if btn.id == "notebook_next" then Inv.editing = false Inv.action.page = clamp((Inv.action.page or 1) + 1, 1, #(Inv.action.notebook.pages or {})) refreshNotebookPanel() return end
+    if btn.id == "notebook_new_page" then
+        local book = Inv.action.notebook
+        if #(book.pages or {}) >= 12 then return end
+        book.pages[#book.pages + 1] = { title = "Strona " .. tostring(#book.pages + 1), body = "", pinned = false }
+        Inv.action.page = #book.pages
+        Inv.editing = true
+        Inv.editText = ""
+        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_new_page", toJSON({ uid = Inv.action.item.uid }, true))
+        refreshNotebookPanel()
+        return
+    end
+    if btn.id == "notebook_delete_page" then
+        local book = Inv.action.notebook
+        if #(book.pages or {}) <= 1 then return end
+        local _, _, pageNo = notebookCurrent(Inv.action)
+        table.remove(book.pages, pageNo)
+        Inv.action.page = clamp(pageNo, 1, #book.pages)
+        Inv.editing = false
+        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_delete_page", toJSON({ uid = Inv.action.item.uid, page = pageNo }, true))
+        refreshNotebookPanel()
+        return
+    end
+    if btn.id == "notebook_toggle_pin" then
+        local _, page, pageNo = notebookCurrent(Inv.action)
+        page.pinned = not page.pinned
+        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_toggle_pin", toJSON({ uid = Inv.action.item.uid, page = pageNo }, true))
+        refreshNotebookPanel()
+        return
+    end
     if btn.id == "server_use" then triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, Inv.action.item.uid, Inv.action.item.itemId) return end
     triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, btn.id, toJSON({ uid = Inv.action.item.uid, itemId = Inv.action.item.itemId, amount = btn.amount or 1 }, true))
 end
@@ -198,26 +293,27 @@ local function drawRight(s, item)
         return
     end
     local a = Inv.action
-    text(a.title or "Akcje", x+18*s, y+16*s, x+w-18*s, y+42*s, rgba("text",245), 0.92*s, "default-bold", "left", "top", true)
-    local yy = y + 74*s
-    for _, line in ipairs(a.lines or {}) do text(line, x+18*s, yy, x+w-18*s, yy+24*s, rgba("muted",230), 0.70*s, "default-bold", "left", "top", true, true) yy = yy + 25*s end
+    text(a.title or "Akcje", x+18*s, y+16*s, x+w-18*s, y+42*s, rgba("text",245), 0.86*s, "default-bold", "left", "top", true)
+    local yy = y + 58*s
+    for _, line in ipairs(a.lines or {}) do text(line, x+18*s, yy, x+w-18*s, yy+22*s, rgba("muted",230), 0.64*s, "default-bold", "left", "top", true, true) yy = yy + 21*s end
     if a.editor then
-        yy = yy + 8*s
-        dxDrawRectangle(x+18*s, yy, w-36*s, 100*s, rgba("dark",235), true)
-        local value = Inv.editText or ""
+        yy = yy + 6*s
+        dxDrawRectangle(x+18*s, yy, w-36*s, 126*s, rgba("dark",235), true)
+        local value = Inv.editing and (Inv.editText or "") or (a.text or "")
         if Inv.editing and getTickCount() % 1000 < 520 then value = value .. "|" end
-        text(#value > 0 and value or "Kliknij edycje i wpisz tresc...", x+28*s, yy+10*s, x+w-28*s, yy+90*s, #value > 0 and rgba("text",235) or rgba("muted",160), 0.70*s, "default", "left", "top", true, true)
-        yy = yy + 114*s
+        text(#value > 0 and value or "Kliknij edycje i wpisz tresc strony...", x+28*s, yy+10*s, x+w-28*s, yy+116*s, #value > 0 and rgba("text",235) or rgba("muted",160), 0.68*s, "default", "left", "top", true, true)
+        yy = yy + 138*s
     else yy = yy + 12*s end
     yy = drawPrompt(s, x, y, w, yy)
     if Inv.prompt then return end
     for i, btn in ipairs(a.actions or {}) do
-        local bh = 32*s
+        local bh = 28*s
+        if yy + bh > y + h - 8*s then break end
         dxDrawRectangle(x+18*s, yy, w-36*s, bh, i == (a.selected or 1) and rgba("active",235) or rgba("panel",205), true)
         dxDrawRectangle(x+18*s, yy+bh-2, w-36*s, 2, i == (a.selected or 1) and rgba("accent",245) or rgba("line",135), true)
-        text(btn.label or btn.id, x+30*s, yy+8*s, x+w-30*s, yy+bh, rgba("text",240), 0.72*s, "default-bold", "left", "top", true)
+        text(btn.label or btn.id, x+30*s, yy+7*s, x+w-30*s, yy+bh, rgba("text",240), 0.66*s, "default-bold", "left", "top", true)
         Inv.actionBounds[#Inv.actionBounds+1] = { index=i, x=x+18*s, y=yy, w=w-36*s, h=bh }
-        yy = yy + bh + 8*s
+        yy = yy + bh + 6*s
     end
 end
 
@@ -259,13 +355,35 @@ function Inv.handleClick(button, state, ax, ay)
     if ax >= x and ax <= x+w and ay >= y+header and ay <= y+header+rowsVisible()*Inv.rowH then closeAction() local idx = Inv.scroll + math.floor((ay-y-header)/Inv.rowH) + 1 if list[idx] then Inv.selected = idx end cancelEvent() end
 end
 
+local function handleCharacter(ch)
+    if not Inv.visible then return end
+    if Inv.editing then
+        if #(Inv.editText or "") < 1200 then Inv.editText = (Inv.editText or "") .. tostring(ch or "") end
+    elseif Inv.prompt then
+        local char = tostring(ch or "")
+        if char:match("%d") then
+            if Inv.prompt.field == "price" then Inv.prompt.price = (Inv.prompt.price or "") .. char else Inv.prompt.amount = (Inv.prompt.amount or "") .. char end
+        end
+    end
+end
+
 local function setVisible(state)
     state = state == true
     if state and Inv.blocked then return end
     if Inv.visible == state then return end
     Inv.visible = state
     showCursor(state)
-    if state then layout() requestSync() addEventHandler("onClientRender", root, drawInventory) if not clickAttached then addEventHandler("onClientClick", root, Inv.handleClick) clickAttached = true end if not characterAttached then addEventHandler("onClientCharacter", root, function(ch) if Inv.visible and Inv.editing and #Inv.editText < 500 then Inv.editText = Inv.editText .. tostring(ch or "") elseif Inv.visible and Inv.prompt then local char = tostring(ch or "") if char:match("%d") then if Inv.prompt.field == "price" then Inv.prompt.price = (Inv.prompt.price or "") .. char else Inv.prompt.amount = (Inv.prompt.amount or "") .. char end end end end) characterAttached = true end else closeAction() removeEventHandler("onClientRender", root, drawInventory) if clickAttached then removeEventHandler("onClientClick", root, Inv.handleClick) clickAttached = false end end
+    if state then
+        layout()
+        requestSync()
+        addEventHandler("onClientRender", root, drawInventory)
+        if not clickAttached then addEventHandler("onClientClick", root, Inv.handleClick) clickAttached = true end
+        if not characterAttached then addEventHandler("onClientCharacter", root, handleCharacter) characterAttached = true end
+    else
+        closeAction()
+        removeEventHandler("onClientRender", root, drawInventory)
+        if clickAttached then removeEventHandler("onClientClick", root, Inv.handleClick) clickAttached = false end
+    end
 end
 
 local function canToggle() if Inv.blocked then return false end if HRP.ClientCharacter and HRP.ClientCharacter.visible then return false end if isChatBoxInputActive and isChatBoxInputActive() then return false end if isConsoleActive and isConsoleActive() then return false end if isMainMenuActive and isMainMenuActive() then return false end return true end
@@ -286,7 +404,13 @@ local function handleKey(button, press)
     if not press then return end
     button = tostring(button or ""):lower()
     if Inv.visible and Inv.prompt then if handlePromptKey(button) then return end end
-    if Inv.visible and Inv.editing then if button == "backspace" then Inv.editText = string.sub(Inv.editText or "", 1, math.max(0, #(Inv.editText or "") - 1)) cancelEvent() return end if button == "enter" then runAction({ id = "notebook_save" }) cancelEvent() return end if button == "escape" then Inv.editing = false cancelEvent() return end cancelEvent() return end
+    if Inv.visible and Inv.editing then
+        if button == "backspace" then Inv.editText = string.sub(Inv.editText or "", 1, math.max(0, #(Inv.editText or "") - 1)) cancelEvent() return end
+        if button == "enter" then runAction({ id = "notebook_save_page" }) cancelEvent() return end
+        if button == "escape" then Inv.editing = false refreshNotebookPanel() cancelEvent() return end
+        cancelEvent()
+        return
+    end
     if button == "e" and Inv.nearDrop and not Inv.visible then if Inv.nearDrop.cash == true or Inv.nearDrop.itemId == "cash" then triggerServerEvent("HeavyRPG:Inventory:pickupCashDrop", resourceRoot, Inv.nearDrop.id) else triggerServerEvent("HeavyRPG:Inventory:pickupDrop", resourceRoot, Inv.nearDrop.id) end cancelEvent() return end
     if button == tostring(cfg().key or "i") then if not canToggle() then return end setVisible(not Inv.visible) cancelEvent() return end
     if not Inv.visible then return end
