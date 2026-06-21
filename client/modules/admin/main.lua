@@ -128,7 +128,25 @@ local function openPanel(payload)
     end
 end
 
-local function closePanel() setVisible(false) end
+local function closePanel()
+    setVisible(false)
+end
+
+local function togglePanelCommand()
+    if Panel.visible then
+        closePanel()
+        return
+    end
+    triggerServerEvent("HeavyRPG:Admin:request", resourceRoot)
+    triggerServerEvent("HeavyRPG:Admin:advancedRequest", resourceRoot)
+end
+
+local function closeKey()
+    if Panel.visible then
+        closePanel()
+        cancelEvent()
+    end
+end
 
 addEvent("HeavyRPG:Admin:open", true)
 addEventHandler("HeavyRPG:Admin:open", resourceRoot, openPanel)
@@ -171,7 +189,10 @@ addEventHandler("HeavyRPG:UI:admin:advanced", root, function(action, payload)
     triggerServerEvent("HeavyRPG:Admin:advanced", resourceRoot, tostring(action or ""), decodePayload(payload))
 end)
 
-bindKey("escape", "down", function() if Panel.visible then closePanel() cancelEvent() end end)
+addCommandHandler("apanel", togglePanelCommand)
+bindKey("escape", "down", closeKey)
+bindKey("backspace", "down", closeKey)
+bindKey("F2", "down", closeKey)
 
 bindKey(HRP.Config.ui and HRP.Config.ui.toggleDevToolsKey or "F6", "down", function()
     if Panel.visible and Panel.browser then toggleBrowserDevTools(Panel.browser, true) end
