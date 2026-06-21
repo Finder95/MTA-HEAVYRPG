@@ -7,6 +7,21 @@ local function trim(value)
     return (value:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
+local function stripColors(value)
+    return trim(value):gsub("#%x%x%x%x%x%x", "")
+end
+
+local function characterFullName(character)
+    if type(character) ~= "table" then return nil end
+
+    local firstname = stripColors(character.firstname)
+    local lastname = stripColors(character.lastname)
+    local fullName = trim(firstname .. " " .. lastname)
+    if fullName == "" then return nil end
+
+    return fullName, firstname, lastname
+end
+
 local function characterName(player)
     if not isElement(player) then return "Ktos" end
     local name = getElementData(player, "hrp:character:name")
@@ -26,10 +41,22 @@ local function cleanMessage(message)
     return message
 end
 
-local function applyCharacterIdentity(player)
+local function applyCharacterIdentity(player, character)
+    if not isElement(player) then return end
+
+    local fullName, firstname, lastname = characterFullName(character)
+    if fullName then
+        setElementData(player, "hrp:character:id", tonumber(character.id) or false, true)
+        setElementData(player, "hrp:character:name", fullName, true)
+        setElementData(player, "hrp:character:firstname", firstname, true)
+        setElementData(player, "hrp:character:lastname", lastname, true)
+        setElementData(player, "hrp:character:skin", tonumber(character.skin) or false, true)
+    end
+
     if not hasCharacter(player) then return end
+
     local name = characterName(player)
-    setElementData(player, "hrp:display:name", name, false)
+    setElementData(player, "hrp:display:name", name, true)
     if setPlayerNametagText then setPlayerNametagText(player, name) end
 end
 
@@ -65,8 +92,8 @@ addEventHandler("onPlayerChat", root, function(message, messageType)
     end
 end)
 
-addEventHandler("HeavyRPG:Character:onPlayerReady", resourceRoot, function(player)
-    applyCharacterIdentity(player)
+addEventHandler("HeavyRPG:Character:onPlayerReady", resourceRoot, function(player, character)
+    applyCharacterIdentity(player, character)
 end)
 
 addEventHandler("onResourceStart", resourceRoot, function()
