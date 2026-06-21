@@ -143,6 +143,11 @@ addEventHandler("HeavyRPG:Phone:data", resourceRoot, function(payload)
     emit("phone:data", Phone.pendingPayload)
 end)
 
+addEvent("HeavyRPG:Phone:callStatus", true)
+addEventHandler("HeavyRPG:Phone:callStatus", resourceRoot, function(payload)
+    emit("phone:callStatus", payload or {})
+end)
+
 addEvent("HeavyRPG:UI:phone:close", true)
 addEventHandler("HeavyRPG:UI:phone:close", root, closePhone)
 
@@ -157,6 +162,11 @@ end)
 addEvent("HeavyRPG:UI:phone:sendSms", true)
 addEventHandler("HeavyRPG:UI:phone:sendSms", root, function(jsonPayload)
     triggerServerEvent("HeavyRPG:Phone:sendSms", resourceRoot, decodePayload(jsonPayload))
+end)
+
+addEvent("HeavyRPG:UI:phone:call", true)
+addEventHandler("HeavyRPG:UI:phone:call", root, function(jsonPayload)
+    triggerServerEvent("HeavyRPG:Phone:call", resourceRoot, decodePayload(jsonPayload))
 end)
 
 bindKey("backspace", "down", function()
