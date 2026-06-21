@@ -30,6 +30,7 @@
     <script src="server/modules/inventory/note_visual.lua" type="server" />
     <script src="server/modules/admin/db_guard.lua" type="server" />
     <script src="server/modules/admin/main.lua" type="server" />
+    <script src="server/modules/admin/open_request.lua" type="server" />
     <script src="server/modules/admin/announcements.lua" type="server" />
     <script src="server/modules/admin/advanced_guard.lua" type="server" />
     <script src="server/modules/admin/advanced.lua" type="server" />
