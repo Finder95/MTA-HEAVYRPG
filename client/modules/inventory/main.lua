@@ -12,6 +12,8 @@ HRP.ClientInventory = HRP.ClientInventory or {
     category = "all",
     currentWeight = 0,
     maxWeight = 35,
+    nearDrop = nil,
+    action = nil,
     sx = 0,
     sy = 0,
     x = 0,
@@ -23,6 +25,7 @@ HRP.ClientInventory = HRP.ClientInventory or {
 
 local Inv = HRP.ClientInventory
 local clickAttached = false
+local overlayAttached = false
 local fallbackCategories = { all = "Wszystko", money = "Gotowka", documents = "Dokumenty", consumable = "Jedzenie", medical = "Medyczne", utility = "Uzytkowe", illegal = "Nielegalne", misc = "Inne" }
 
 local function cfg() return HRP.Config.inventory or {} end
@@ -195,14 +198,14 @@ local function drawDetails(scale, item)
     shadowText(item.description or "Brak opisu.", x + 18 * scale, yy + 24 * scale, x + w - 18 * scale, y + h - 96 * scale, color("text", 225), 0.72 * scale, "default", "left", "top", true, true)
 
     local actionY = y + h - 72 * scale
-    local canUse = item.usable and not item.virtual
+    local canUse = item.usable == true
     shadowText("ENTER", x + 18 * scale, actionY, x + 88 * scale, actionY + 22 * scale, canUse and color("accent", 220) or color("muted", 150), 0.72 * scale, "default-bold")
-    shadowText(canUse and "Uzyj" or "Brak akcji", x + 90 * scale, actionY, x + w - 18 * scale, actionY + 22 * scale, color("text", 220), 0.72 * scale, "default-bold")
+    shadowText(canUse and "Uzyj / otworz akcje" or "Brak akcji", x + 90 * scale, actionY, x + w - 18 * scale, actionY + 22 * scale, color("text", 220), 0.72 * scale, "default-bold")
     shadowText("BACKSPACE", x + 18 * scale, actionY + 26 * scale, x + 118 * scale, actionY + 48 * scale, item.virtual and color("muted", 135) or color("danger", 220), 0.72 * scale, "default-bold")
-    shadowText(item.virtual and "Nie mozna wyrzucic" or "Wyrzuc 1 szt.", x + 120 * scale, actionY + 26 * scale, x + w - 18 * scale, actionY + 48 * scale, color("text", 220), 0.72 * scale, "default-bold")
+    shadowText(item.virtual and "Nie mozna wyrzucic" or "Wyrzuc na ziemie", x + 120 * scale, actionY + 26 * scale, x + w - 18 * scale, actionY + 48 * scale, color("text", 220), 0.72 * scale, "default-bold")
 end
 
-local function renderInventory()
+local function drawInventory()
     if not Inv.visible or isPlayerMapVisible() then return end
     local scale = rebuildBounds()
     local item, list = selectedItem()
@@ -219,11 +222,46 @@ local function renderInventory()
     shadowText("I / ESC - zamknij    TAB / klik - kategoria    ENTER - uzyj    BACKSPACE - wyrzuc 1    DEL - wyrzuc stos", Inv.x + 18 * scale, Inv.y + Inv.h - 48 * scale, Inv.x + Inv.w - 18 * scale, Inv.y + Inv.h - 24 * scale, color("muted", 225), 0.68 * scale, "default-bold", "center")
 end
 
+local function drawActionPanel(scale, sx, sy)
+    local action = Inv.action
+    if not action then return end
+    local w = math.floor(math.min(560 * scale, sx - 48))
+    local h = math.floor(math.min(270 * scale, sy - 48))
+    local x = math.floor((sx - w) / 2)
+    local y = math.floor((sy - h) / 2)
+    panelRect(x, y, w, h, color("background", 238), color("line", 225))
+    shadowText(action.title or "AKCJA", x + 18 * scale, y + 16 * scale, x + w - 18 * scale, y + 42 * scale, color("accent", 245), 0.9 * scale, "default-bold", "center")
+    local yy = y + 58 * scale
+    for _, line in ipairs(action.lines or {}) do
+        shadowText(line, x + 24 * scale, yy, x + w - 24 * scale, yy + 24 * scale, color("text", 235), 0.72 * scale, "default-bold", "left", "top", true, true)
+        yy = yy + 28 * scale
+        if yy > y + h - 54 * scale then break end
+    end
+    shadowText(action.footer or "ESC - zamknij", x + 18 * scale, y + h - 34 * scale, x + w - 18 * scale, y + h - 14 * scale, color("muted", 225), 0.68 * scale, "default-bold", "center")
+end
+
+local function drawDropPrompt(scale, sx, sy)
+    local drop = Inv.nearDrop
+    if not drop or Inv.visible or Inv.action then return end
+    local text = "E - podnies " .. tostring(drop.label or "przedmiot") .. " x" .. tostring(drop.quantity or 1)
+    local w = math.max(320 * scale, dxGetTextWidth(text, 0.78 * scale, "default-bold") + 38 * scale)
+    local h = 38 * scale
+    local x = (sx - w) / 2
+    local y = sy - 132 * scale
+    panelRect(x, y, w, h, color("panel", 215), color("line", 210))
+    shadowText(text, x, y + 9 * scale, x + w, y + h, color("text", 245), 0.78 * scale, "default-bold", "center")
+end
+
+local function renderOverlay()
+    local scale, sx, sy = uiScale()
+    drawDropPrompt(scale, sx, sy)
+    drawActionPanel(scale, sx, sy)
+end
+
 local function requestSync() triggerServerEvent("HeavyRPG:Inventory:request", resourceRoot) end
 
 function Inv.handleClick(button, state, absX, absY)
     if not Inv.visible or button ~= "left" or state ~= "down" then return end
-
     for _, bounds in ipairs(Inv.categoryBounds or {}) do
         if absX >= bounds.x and absX <= bounds.x + bounds.w and absY >= bounds.y and absY <= bounds.y + bounds.h then
             Inv.category, Inv.selected, Inv.scroll = bounds.id, 1, 0
@@ -231,7 +269,6 @@ function Inv.handleClick(button, state, absX, absY)
             return
         end
     end
-
     local scale = uiScale()
     local list = filteredItems()
     local listX, listY, listW = Inv.x + 18 * scale, Inv.y + 108 * scale, Inv.w * 0.58
@@ -252,10 +289,10 @@ local function setVisible(state)
     if state then
         rebuildBounds()
         requestSync()
-        addEventHandler("onClientRender", root, renderInventory)
+        addEventHandler("onClientRender", root, drawInventory)
         if not clickAttached then addEventHandler("onClientClick", root, Inv.handleClick) clickAttached = true end
     else
-        removeEventHandler("onClientRender", root, renderInventory)
+        removeEventHandler("onClientRender", root, drawInventory)
         if clickAttached then removeEventHandler("onClientClick", root, Inv.handleClick) clickAttached = false end
     end
 end
@@ -286,8 +323,9 @@ end
 
 local function selectedAction(action)
     local item = selectedItem()
-    if not item or item.virtual then return end
-    if action == "use" and item.usable then triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, item.uid) end
+    if not item then return end
+    if action == "use" and item.usable then triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, item.uid, item.itemId) end
+    if item.virtual then return end
     if action == "drop_one" then triggerServerEvent("HeavyRPG:Inventory:drop", resourceRoot, item.uid, 1) end
     if action == "drop_stack" then triggerServerEvent("HeavyRPG:Inventory:drop", resourceRoot, item.uid, item.quantity or 1) end
 end
@@ -295,6 +333,18 @@ end
 local function handleKey(button, press)
     if not press then return end
     button = tostring(button or ""):lower()
+
+    if Inv.action and (button == "escape" or button == "enter" or button == "backspace") then
+        Inv.action = nil
+        cancelEvent()
+        return
+    end
+
+    if button == "e" and Inv.nearDrop and not Inv.visible and not Inv.action then
+        triggerServerEvent("HeavyRPG:Inventory:pickupDrop", resourceRoot, Inv.nearDrop.id)
+        cancelEvent()
+        return
+    end
 
     if button == tostring(cfg().key or "i") then
         if not canToggle() then return end
@@ -317,6 +367,7 @@ end
 
 local function blockInventory()
     Inv.blocked = true
+    Inv.action = nil
     setVisible(false)
 end
 
@@ -327,6 +378,7 @@ end
 addEvent("HeavyRPG:Inventory:sync", true)
 addEventHandler("HeavyRPG:Inventory:sync", resourceRoot, function(payload)
     payload = type(payload) == "table" and payload or {}
+    Inv.blocked = false
     Inv.items = type(payload.items) == "table" and payload.items or {}
     Inv.categories = type(payload.categories) == "table" and payload.categories or {}
     Inv.currentWeight = tonumber(payload.currentWeight) or 0
@@ -336,8 +388,27 @@ end)
 
 addEvent("HeavyRPG:Inventory:open", true)
 addEventHandler("HeavyRPG:Inventory:open", resourceRoot, function() setVisible(true) end)
+
+addEvent("HeavyRPG:Inventory:nearDrop", true)
+addEventHandler("HeavyRPG:Inventory:nearDrop", resourceRoot, function(state, payload)
+    if state then Inv.nearDrop = type(payload) == "table" and payload or nil else Inv.nearDrop = nil end
+end)
+
+addEvent("HeavyRPG:Inventory:action", true)
+addEventHandler("HeavyRPG:Inventory:action", resourceRoot, function(payload)
+    Inv.action = type(payload) == "table" and payload or nil
+end)
+
 addEventHandler("HeavyRPG:Auth:show", resourceRoot, blockInventory)
 addEventHandler("HeavyRPG:Character:showCreator", resourceRoot, blockInventory)
 addEventHandler("HeavyRPG:Character:hideCreator", resourceRoot, unblockInventory)
-addEventHandler("onClientResourceStart", resourceRoot, function() Inv.blocked = true addEventHandler("onClientKey", root, handleKey) end)
-addEventHandler("onClientResourceStop", resourceRoot, function() removeEventHandler("onClientKey", root, handleKey) setVisible(false) end)
+addEventHandler("onClientResourceStart", resourceRoot, function()
+    Inv.blocked = true
+    addEventHandler("onClientKey", root, handleKey)
+    if not overlayAttached then addEventHandler("onClientRender", root, renderOverlay) overlayAttached = true end
+end)
+addEventHandler("onClientResourceStop", resourceRoot, function()
+    removeEventHandler("onClientKey", root, handleKey)
+    if overlayAttached then removeEventHandler("onClientRender", root, renderOverlay) overlayAttached = false end
+    setVisible(false)
+end)
