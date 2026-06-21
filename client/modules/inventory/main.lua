@@ -504,6 +504,8 @@ local function handleKey(button, press)
         if button == "backspace" then Inv.editText = string.sub(Inv.editText or "", 1, math.max(0, #(Inv.editText or "") - 1)) cancelEvent() return end
         if button == "enter" then runMenuAction({ id = "notebook_save" }) cancelEvent() return end
         if button == "escape" then Inv.editing = false cancelEvent() return end
+        cancelEvent()
+        return
     end
 
     if button == "e" and Inv.nearDrop and not Inv.visible then
