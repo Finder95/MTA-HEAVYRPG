@@ -16,7 +16,6 @@ local renderAttached = false
 local placementDepths = { 3.0, 5.0, 8.0, 12.0 }
 
 local function color(r, g, b, a) return tocolor(r, g, b, a or 255) end
-local function clamp(value, minValue, maxValue) value = tonumber(value) or minValue if value < minValue then return minValue end if value > maxValue then return maxValue end return value end
 
 local function noteActionOpen()
     local action = Inv.action
@@ -32,6 +31,66 @@ local function screenPoint()
     return sx / 2, sy / 2, sx, sy
 end
 
+local function matrixPoint(matrix, lx, ly, lz)
+    return lx * matrix[1][1] + ly * matrix[2][1] + lz * matrix[3][1] + matrix[4][1],
+        lx * matrix[1][2] + ly * matrix[2][2] + lz * matrix[3][2] + matrix[4][2],
+        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
+end
+
+local function vehicleNotePoint(vehicle)
+    local vx, vy, vz = getElementPosition(vehicle)
+    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
+    local matrix = getElementMatrix(vehicle)
+    if not minX or not matrix then return vx, vy, vz + 1.05 end
+
+    local px, py, pz = getElementPosition(localPlayer)
+    local z = minZ + (maxZ - minZ) * 0.68
+    local candidates = {
+        { 0, maxY * 0.56, z },
+        { minX * 0.28, maxY * 0.56, z },
+        { maxX * 0.28, maxY * 0.56, z },
+        { 0, minY * 0.56, z },
+        { minX * 0.28, minY * 0.56, z },
+        { maxX * 0.28, minY * 0.56, z }
+    }
+
+    local best = nil
+    for _, candidate in ipairs(candidates) do
+        local wx, wy, wz = matrixPoint(matrix, candidate[1], candidate[2], candidate[3])
+        local distance = getDistanceBetweenPoints3D(px, py, pz, wx, wy, wz)
+        if not best or distance < best.distance then best = { x = wx, y = wy, z = wz, distance = distance } end
+    end
+
+    if best then return best.x, best.y, best.z end
+    return vx, vy, vz + 1.05
+end
+
+local function nearestVehicle(maxDistance)
+    local px, py, pz = getElementPosition(localPlayer)
+    local best = nil
+    for _, vehicle in ipairs(getElementsWithinRange(px, py, pz, maxDistance or 4.5, "vehicle")) do
+        if isElement(vehicle) and isElementStreamedIn(vehicle) then
+            local vx, vy, vz = getElementPosition(vehicle)
+            local distance = getDistanceBetweenPoints3D(px, py, pz, vx, vy, vz)
+            if not best or distance < best.distance then best = { vehicle = vehicle, distance = distance } end
+        end
+    end
+    return best and best.vehicle or nil
+end
+
+local function autoPlaceVehicleNote(uid)
+    local vehicle = nearestVehicle(4.8)
+    if not vehicle then
+        outputChatBox("[EQ] Podejdz do pojazdu, zeby zostawic kartke za wycieraczka.", 230, 90, 80)
+        return false
+    end
+
+    triggerEvent("HeavyRPG:Inventory:close", resourceRoot)
+    local x, y, z = vehicleNotePoint(vehicle)
+    rawTriggerServerEvent("HeavyRPG:Inventory:placeNote", resourceRoot, uid, "vehicle", x, y, z, vehicle)
+    return true
+end
+
 local function rayTarget(px, py, distance)
     local wx, wy, wz = getWorldFromScreenPosition(px, py, distance)
     if wx and wy and wz then return wx, wy, wz end
@@ -43,95 +102,21 @@ local function rayTarget(px, py, distance)
     return cx + dx / length * distance, cy + dy / length * distance, cz + dz / length * distance
 end
 
-local function matrixPoint(matrix, lx, ly, lz)
-    return lx * matrix[1][1] + ly * matrix[2][1] + lz * matrix[3][1] + matrix[4][1],
-        lx * matrix[1][2] + ly * matrix[2][2] + lz * matrix[3][2] + matrix[4][2],
-        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
-end
-
-local function vehicleCandidatePoint(vehicle, cursorX, cursorY)
-    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
-    local matrix = getElementMatrix(vehicle)
-    if not minX or not matrix then
-        local vx, vy, vz = getElementPosition(vehicle)
-        return vx, vy, vz + 1.05, 999
-    end
-
-    local z = minZ + (maxZ - minZ) * 0.70
-    local candidates = {
-        { 0, maxY * 0.62, z },
-        { minX * 0.34, maxY * 0.62, z },
-        { maxX * 0.34, maxY * 0.62, z },
-        { 0, minY * 0.62, z },
-        { minX * 0.34, minY * 0.62, z },
-        { maxX * 0.34, minY * 0.62, z },
-        { 0, maxY * 0.35, minZ + (maxZ - minZ) * 0.52 },
-        { 0, minY * 0.35, minZ + (maxZ - minZ) * 0.52 }
-    }
-
-    local bestX, bestY, bestZ, bestScreenDistance = nil, nil, nil, 99999
-    for _, candidate in ipairs(candidates) do
-        local wx, wy, wz = matrixPoint(matrix, candidate[1], candidate[2], candidate[3])
-        local sx, sy = getScreenFromWorldPosition(wx, wy, wz, 0.1, true)
-        local screenDistance = sx and math.sqrt((sx - cursorX) * (sx - cursorX) + (sy - cursorY) * (sy - cursorY)) or 9999
-        if screenDistance < bestScreenDistance then
-            bestX, bestY, bestZ, bestScreenDistance = wx, wy, wz, screenDistance
-        end
-    end
-
-    return bestX, bestY, bestZ, bestScreenDistance
-end
-
-local function vehicleScreenFallback(cursorX, cursorY, screenX, screenY)
-    if not placing or placing.mode ~= "vehicle" then return false end
-
-    local px, py, pz = getElementPosition(localPlayer)
-    local threshold = clamp(math.min(screenX, screenY) * 0.12, 130, 220)
-    local best = nil
-
-    for _, vehicle in ipairs(getElementsWithinRange(px, py, pz, 7.0, "vehicle")) do
-        if isElement(vehicle) and isElementStreamedIn(vehicle) then
-            local wx, wy, wz, screenDistance = vehicleCandidatePoint(vehicle, cursorX, cursorY)
-            local vx, vy, vz = getElementPosition(vehicle)
-            local vehicleDistance = getDistanceBetweenPoints3D(px, py, pz, vx, vy, vz)
-            local pointDistance = wx and getDistanceBetweenPoints3D(px, py, pz, wx, wy, wz) or vehicleDistance
-            if vehicleDistance <= 6.5 and pointDistance <= 7.0 then
-                local score = screenDistance + vehicleDistance * 10
-                if (screenDistance <= threshold or vehicleDistance <= 3.8) and (not best or score < best.score) then
-                    best = { score = score, x = wx or vx, y = wy or vy, z = wz or (vz + 1.05), vehicle = vehicle }
-                end
-            end
-        end
-    end
-
-    if best then return true, best.x, best.y, best.z, best.vehicle, 0, 0, 1 end
-    return false
-end
-
 local function cursorHit()
-    local px, py, sx, sy = screenPoint()
+    local px, py = screenPoint()
     local camX, camY, camZ = getCameraMatrix()
 
     for _, distance in ipairs(placementDepths) do
         local tx, ty, tz = rayTarget(px, py, distance)
         local hit, x, y, z, element, nx, ny, nz = rawProcessLineOfSight(camX, camY, camZ, tx, ty, tz, true, true, true, true, true, false, false, false, localPlayer)
-        if hit then
-            if not placing or placing.mode ~= "vehicle" then return true, x, y, z, element, nx, ny, nz end
-            if isElement(element) and getElementType(element) == "vehicle" then return true, x, y, z, element, nx, ny, nz end
-        end
-    end
-
-    if placing and placing.mode == "vehicle" then
-        return vehicleScreenFallback(px, py, sx, sy)
+        if hit then return true, x, y, z, element, nx, ny, nz end
     end
 
     return false
 end
 
-local function placementValid(hit, element)
-    if not placing or not hit then return false end
-    if placing.mode == "vehicle" then return isElement(element) and getElementType(element) == "vehicle" end
-    return true
+local function placementValid(hit)
+    return placing and hit == true
 end
 
 local function stopPlacement(message)
@@ -144,7 +129,13 @@ local function stopPlacement(message)
 end
 
 local function startPlacement(uid, mode)
-    placing = { uid = uid, mode = tostring(mode or "world") }
+    mode = tostring(mode or "world")
+    if mode == "vehicle" then
+        autoPlaceVehicleNote(uid)
+        return
+    end
+
+    placing = { uid = uid, mode = "world" }
     triggerEvent("HeavyRPG:Inventory:close", resourceRoot)
     setTimer(function()
         if not placing then return end
@@ -159,12 +150,12 @@ end
 
 function Inv.drawNotePlacement()
     if not placing then return end
-    local hit, x, y, z, element = cursorHit()
-    local ok = placementValid(hit, element)
+    local hit, x, y, z = cursorHit()
+    local ok = placementValid(hit)
     local mx, my, sx, sy = screenPoint()
     local accent = ok and color(176, 222, 150, 245) or color(230, 90, 80, 245)
     local shadow = color(0, 0, 0, 170)
-    local label = ok and "LPM - zostaw kartke przy pojezdzie" or (placing.mode == "vehicle" and "Podejdz do pojazdu i wskaz jego przod/szybe" or "Wskaz miejsce pod kursorem")
+    local label = ok and "LPM - przyklej kartke tutaj" or "Wskaz miejsce pod kursorem"
 
     dxDrawLine(mx - 18, my, mx - 6, my, shadow, 4, true)
     dxDrawLine(mx + 6, my, mx + 18, my, shadow, 4, true)
@@ -174,8 +165,8 @@ function Inv.drawNotePlacement()
     dxDrawLine(mx + 6, my, mx + 18, my, accent, 2, true)
     dxDrawLine(mx, my - 18, mx, my - 6, accent, 2, true)
     dxDrawLine(mx, my + 6, mx, my + 18, accent, 2, true)
-    dxDrawText(label, mx - 260, my + 26, mx + 260, my + 54, shadow, 0.82, "default-bold", "center", "center", false, false, true)
-    dxDrawText(label, mx - 260, my + 25, mx + 260, my + 53, accent, 0.82, "default-bold", "center", "center", false, false, true)
+    dxDrawText(label, mx - 220, my + 26, mx + 220, my + 54, shadow, 0.82, "default-bold", "center", "center", false, false, true)
+    dxDrawText(label, mx - 220, my + 25, mx + 220, my + 53, accent, 0.82, "default-bold", "center", "center", false, false, true)
     dxDrawText("PPM / ESC - anuluj", 0, sy - 92, sx, sy - 62, color(232, 229, 219, 230), 0.78, "default-bold", "center", "center", false, false, true)
 
     if ok and x and y and z then
@@ -194,8 +185,8 @@ function Inv.handleNotePlacementClick(button, state)
     if button ~= "left" then return end
 
     local hit, x, y, z, element = cursorHit()
-    if not placementValid(hit, element) then
-        outputChatBox(placing.mode == "vehicle" and "[EQ] Podejdz blizej do pojazdu i wskaz jego przod albo szybe." or "[EQ] Wskaz miejsce pod kursorem.", 230, 90, 80)
+    if not placementValid(hit) then
+        outputChatBox("[EQ] Wskaz miejsce pod kursorem.", 230, 90, 80)
         cancelEvent()
         return
     end
