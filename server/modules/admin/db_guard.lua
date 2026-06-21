@@ -8,6 +8,25 @@ local function exec(sql)
     return HRP.DB and HRP.DB.exec and HRP.DB.exec(sql, {}) == true
 end
 
+local function tableColumns(tableName)
+    local columns = {}
+    if not HRP.DB or not HRP.DB.connection then return columns end
+    local qh = dbQuery(HRP.DB.connection, "PRAGMA table_info(" .. tostring(tableName) .. ")")
+    if not qh then return columns end
+    local rows = dbPoll(qh, -1)
+    if type(rows) ~= "table" then return columns end
+    for _, row in ipairs(rows) do
+        if row.name then columns[tostring(row.name)] = true end
+    end
+    return columns
+end
+
+local function ensureColumn(tableName, columnName, sql)
+    local columns = tableColumns(tableName)
+    if columns[columnName] then return true end
+    return exec(sql)
+end
+
 local function ensureAdminDependencies()
     if not HRP.DB or not HRP.DB.connection then return false end
 
@@ -26,6 +45,7 @@ local function ensureAdminDependencies()
         updated_at INTEGER NOT NULL DEFAULT 0
     )]])
     and exec([[CREATE INDEX IF NOT EXISTS idx_world_placed_notes_place ON world_placed_notes(dimension, interior)]])
+    and ensureColumn("accounts", "admin_level", [[ALTER TABLE accounts ADD COLUMN admin_level INTEGER NOT NULL DEFAULT 0]])
     and exec([[CREATE TABLE IF NOT EXISTS admin_members (
         account_id INTEGER NOT NULL,
         character_id INTEGER,
@@ -51,21 +71,23 @@ local function ensureAdminDependencies()
     and exec([[CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit(created_at)]])
     and exec([[CREATE TABLE IF NOT EXISTS admin_punishments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        target_account_id INTEGER,
-        target_character_id INTEGER,
         target_serial TEXT NOT NULL DEFAULT '',
         target_name TEXT NOT NULL DEFAULT '',
+        target_account_id INTEGER,
+        target_character_id INTEGER,
         admin_account_id INTEGER,
         admin_character_id INTEGER,
         admin_name TEXT NOT NULL DEFAULT '',
         type TEXT NOT NULL,
         reason TEXT NOT NULL DEFAULT '',
-        duration INTEGER,
+        duration_seconds INTEGER NOT NULL DEFAULT 0,
         expires_at INTEGER,
         active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL DEFAULT 0
     )]])
+    and ensureColumn("admin_punishments", "duration_seconds", [[ALTER TABLE admin_punishments ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0]])
+    and ensureColumn("admin_punishments", "updated_at", [[ALTER TABLE admin_punishments ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0]])
     and exec([[CREATE INDEX IF NOT EXISTS idx_admin_punishments_target ON admin_punishments(target_serial, active, type, expires_at)]])
     and exec([[CREATE INDEX IF NOT EXISTS idx_admin_punishments_created ON admin_punishments(created_at)]])
     and exec([[CREATE INDEX IF NOT EXISTS idx_admin_punishments_character ON admin_punishments(target_character_id, active)]])
