@@ -17,6 +17,7 @@ Inv.currentWeight = 0
 Inv.maxWeight = 35
 Inv.nearDrop = nil
 Inv.action = nil
+Inv.prompt = nil
 Inv.editing = false
 Inv.editText = ""
 
@@ -72,36 +73,49 @@ end
 local function rowsVisible() local s = scale() return math.max(6, math.floor((Inv.h - 210 * s) / (Inv.rowH or 30))) end
 local function normalize(list) list = list or filtered() local rows = rowsVisible() if #list == 0 then Inv.selected, Inv.scroll = 1, 0 return end Inv.selected = clamp(Inv.selected, 1, #list) Inv.scroll = clamp(Inv.scroll, 0, math.max(0, #list - rows)) if Inv.selected < Inv.scroll + 1 then Inv.scroll = Inv.selected - 1 end if Inv.selected > Inv.scroll + rows then Inv.scroll = Inv.selected - rows end end
 local function selectedItem() local list = filtered() normalize(list) return list[Inv.selected], list end
-local function closeAction() Inv.action, Inv.editing, Inv.editText, Inv.actionBounds = nil, false, "", {} end
-local function add(actions, id, label, amount) actions[#actions + 1] = { id = id, label = label, amount = amount } end
+local function closeAction() Inv.action, Inv.prompt, Inv.editing, Inv.editText, Inv.actionBounds = nil, nil, false, "", {} end
+local function add(actions, id, label, opts) opts = opts or {} opts.id = id opts.label = label actions[#actions + 1] = opts end
 
 local function makeAction(item)
     if not item then return nil end
     local actions, lines = {}, {}
     if item.itemId == "cash" then
-        lines = { "Przy sobie: " .. money(item.quantity), "Gotowka jest fizyczna: przekazujesz ja graczowi albo wyrzucasz na ziemie." }
-        add(actions, "cash_give", "Przekaz $100 najblizszemu", 100)
-        add(actions, "cash_give", "Przekaz $500 najblizszemu", 500)
-        add(actions, "cash_drop", "Wyrzuc $100 na ziemie", 100)
-        add(actions, "cash_drop_all", "Wyrzuc cala gotowke", item.quantity or 0)
+        lines = { "Przy sobie: " .. money(item.quantity), "Wybierz akcje i wpisz kwote. Bank zostaje poza ekwipunkiem." }
+        add(actions, "cash_give", "Przekaz", { prompt = "amount", max = item.quantity or 0 })
+        add(actions, "cash_drop", "Wyrzuc", { prompt = "amount", max = item.quantity or 0 })
         return { title = "Gotowka", item = item, lines = lines, actions = actions }
     end
     if item.itemId == "notebook" then
-        return { title = "Notes", item = item, lines = { "Edytuj prywatna notatke tego przedmiotu." }, editor = true, text = tostring((item.metadata and item.metadata.note) or ""), actions = { { id = "notebook_edit", label = "Edytuj notatke" }, { id = "notebook_save", label = "Zapisz notatke" }, { id = "item_give", label = "Przekaz notes", amount = 1 }, { id = "item_drop", label = "Wyrzuc notes", amount = 1 } } }
+        return { title = "Notes", item = item, lines = { "Edytuj prywatna notatke tego przedmiotu." }, editor = true, text = tostring((item.metadata and item.metadata.note) or ""), actions = { { id = "notebook_edit", label = "Edytuj notatke" }, { id = "notebook_save", label = "Zapisz notatke" }, { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 }, { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 } } }
     end
     if item.itemId == "phone" then
-        return { title = "Telefon", item = item, lines = { "Numer, kontakty i SMS-y postaci." }, actions = { { id = "phone_open", label = "Otworz telefon" }, { id = "phone_contacts", label = "Pokaz kontakty" }, { id = "phone_sms_help", label = "Instrukcja SMS" }, { id = "item_give", label = "Przekaz telefon", amount = 1 }, { id = "item_drop", label = "Wyrzuc telefon", amount = 1 } } }
+        return { title = "Telefon", item = item, lines = { "Uzyj telefonu, aby otworzyc osobny smartfon CEF." }, actions = { { id = "phone_open", label = "Uzyj" }, { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 }, { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 } } }
     end
     if item.usable == true or utilityItems[item.itemId] then add(actions, "server_use", item.category == "consumable" and "Uzyj / spozyj" or "Uzyj") end
     if not item.virtual then
-        add(actions, "item_give", "Przekaz 1 szt. najblizszemu", 1)
-        if (item.quantity or 1) > 1 then add(actions, "item_give", "Przekaz caly stos", item.quantity) end
-        add(actions, "item_drop", "Wyrzuc 1 szt. na ziemie", 1)
-        if (item.quantity or 1) > 1 then add(actions, "item_drop", "Wyrzuc caly stos", item.quantity) end
-        add(actions, "item_sell", "Sprzedaj 1 szt.", 1)
+        add(actions, "item_give", "Przekaz", { prompt = "amount", max = item.quantity or 1 })
+        add(actions, "item_drop", "Wyrzuc", { prompt = "amount", max = item.quantity or 1 })
+        add(actions, "item_sell", "Sprzedaj", { prompt = "sale", max = item.quantity or 1 })
     end
     if #actions == 0 then add(actions, "noop", "Brak dostepnych akcji") end
-    return { title = "Zarzadzaj przedmiotem", item = item, lines = { item.description or "Brak opisu.", "Wszystko wykonujesz z menu przedmiotu." }, actions = actions }
+    return { title = "Zarzadzaj przedmiotem", item = item, lines = { item.description or "Brak opisu.", "Wybierz akcje, potem podaj ilosc/cene w panelu." }, actions = actions }
+end
+
+local function startPrompt(btn)
+    local max = math.max(1, tonumber(btn.max) or ((Inv.action and Inv.action.item and Inv.action.item.quantity) or 1))
+    Inv.prompt = { action = btn, amount = tostring(math.min(1, max)), price = "", field = "amount", max = max }
+end
+
+local function confirmPrompt()
+    if not Inv.prompt or not Inv.action or not Inv.action.item then return end
+    local btn = Inv.prompt.action
+    local amount = math.floor(tonumber(Inv.prompt.amount) or 0)
+    local price = math.floor(tonumber(Inv.prompt.price) or 0)
+    if amount < 1 then amount = 1 end
+    if amount > Inv.prompt.max then amount = Inv.prompt.max end
+    if btn.prompt == "sale" and price < 1 then return end
+    triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, btn.id, toJSON({ uid = Inv.action.item.uid, itemId = Inv.action.item.itemId, amount = amount, price = price }, true))
+    Inv.prompt = nil
 end
 
 local function drawCategories(s)
@@ -141,10 +155,28 @@ end
 
 local function runAction(btn)
     if not btn or btn.id == "noop" then return end
+    if btn.prompt then startPrompt(btn) return end
     if btn.id == "notebook_edit" then Inv.editing = true Inv.editText = tostring((Inv.action and Inv.action.text) or "") return end
     if btn.id == "notebook_save" then triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_save", toJSON({ uid = Inv.action.item.uid, text = Inv.editText or "" }, true)) Inv.editing = false return end
     if btn.id == "server_use" then triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, Inv.action.item.uid, Inv.action.item.itemId) return end
     triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, btn.id, toJSON({ uid = Inv.action.item.uid, itemId = Inv.action.item.itemId, amount = btn.amount or 1 }, true))
+end
+
+local function drawPrompt(s, x, y, w, yy)
+    local prompt = Inv.prompt
+    if not prompt then return yy end
+    dxDrawRectangle(x+18*s, yy, w-36*s, 122*s, rgba("dark",235), true)
+    text((prompt.action.label or "Akcja") .. " - parametry", x+30*s, yy+10*s, x+w-30*s, yy+30*s, rgba("accent",240), 0.70*s, "default-bold")
+    local amountActive = prompt.field == "amount"
+    local priceActive = prompt.field == "price"
+    text("Ilosc / kwota", x+30*s, yy+38*s, x+130*s, yy+58*s, amountActive and rgba("text",245) or rgba("muted",220), 0.66*s, "default-bold")
+    text(prompt.amount or "", x+140*s, yy+38*s, x+w-30*s, yy+58*s, amountActive and rgba("accent",245) or rgba("text",230), 0.76*s, "default-bold", "right")
+    if prompt.action.prompt == "sale" then
+        text("Cena laczna", x+30*s, yy+62*s, x+130*s, yy+82*s, priceActive and rgba("text",245) or rgba("muted",220), 0.66*s, "default-bold")
+        text(prompt.price ~= "" and money(prompt.price) or "$0", x+140*s, yy+62*s, x+w-30*s, yy+82*s, priceActive and rgba("accent",245) or rgba("text",230), 0.76*s, "default-bold", "right")
+    end
+    text("ENTER - potwierdz    TAB - pole    ESC - anuluj", x+30*s, yy+94*s, x+w-30*s, yy+114*s, rgba("muted",220), 0.58*s, "default-bold", "center")
+    return yy + 134*s
 end
 
 local function drawRight(s, item)
@@ -177,6 +209,8 @@ local function drawRight(s, item)
         text(#value > 0 and value or "Kliknij edycje i wpisz tresc...", x+28*s, yy+10*s, x+w-28*s, yy+90*s, #value > 0 and rgba("text",235) or rgba("muted",160), 0.70*s, "default", "left", "top", true, true)
         yy = yy + 114*s
     else yy = yy + 12*s end
+    yy = drawPrompt(s, x, y, w, yy)
+    if Inv.prompt then return end
     for i, btn in ipairs(a.actions or {}) do
         local bh = 32*s
         dxDrawRectangle(x+18*s, yy, w-36*s, bh, i == (a.selected or 1) and rgba("active",235) or rgba("panel",205), true)
@@ -218,7 +252,7 @@ end
 
 local function requestSync() triggerServerEvent("HeavyRPG:Inventory:request", resourceRoot) end
 function Inv.handleClick(button, state, ax, ay)
-    if not Inv.visible or button ~= "left" or state ~= "down" then return end
+    if not Inv.visible or button ~= "left" or state ~= "down" or Inv.prompt then return end
     for _, b in ipairs(Inv.actionBounds or {}) do if ax >= b.x and ax <= b.x+b.w and ay >= b.y and ay <= b.y+b.h then if Inv.action then Inv.action.selected = b.index runAction((Inv.action.actions or {})[b.index]) end cancelEvent() return end end
     for _, b in ipairs(Inv.categoryBounds or {}) do if ax >= b.x and ax <= b.x+b.w and ay >= b.y and ay <= b.y+b.h then closeAction() Inv.category, Inv.selected, Inv.scroll = b.id, 1, 0 cancelEvent() return end end
     local s = scale(); local list = filtered(); local x, y, w = Inv.x+22*s, Inv.y+124*s, Inv.w*0.58; local header = 28*s
@@ -231,16 +265,27 @@ local function setVisible(state)
     if Inv.visible == state then return end
     Inv.visible = state
     showCursor(state)
-    if state then layout() requestSync() addEventHandler("onClientRender", root, drawInventory) if not clickAttached then addEventHandler("onClientClick", root, Inv.handleClick) clickAttached = true end if not characterAttached then addEventHandler("onClientCharacter", root, function(ch) if Inv.visible and Inv.editing and #Inv.editText < 500 then Inv.editText = Inv.editText .. tostring(ch or "") end end) characterAttached = true end else closeAction() removeEventHandler("onClientRender", root, drawInventory) if clickAttached then removeEventHandler("onClientClick", root, Inv.handleClick) clickAttached = false end end
+    if state then layout() requestSync() addEventHandler("onClientRender", root, drawInventory) if not clickAttached then addEventHandler("onClientClick", root, Inv.handleClick) clickAttached = true end if not characterAttached then addEventHandler("onClientCharacter", root, function(ch) if Inv.visible and Inv.editing and #Inv.editText < 500 then Inv.editText = Inv.editText .. tostring(ch or "") elseif Inv.visible and Inv.prompt then local char = tostring(ch or "") if char:match("%d") then if Inv.prompt.field == "price" then Inv.prompt.price = (Inv.prompt.price or "") .. char else Inv.prompt.amount = (Inv.prompt.amount or "") .. char end end end end) characterAttached = true end else closeAction() removeEventHandler("onClientRender", root, drawInventory) if clickAttached then removeEventHandler("onClientClick", root, Inv.handleClick) clickAttached = false end end
 end
 
 local function canToggle() if Inv.blocked then return false end if HRP.ClientCharacter and HRP.ClientCharacter.visible then return false end if isChatBoxInputActive and isChatBoxInputActive() then return false end if isConsoleActive and isConsoleActive() then return false end if isMainMenuActive and isMainMenuActive() then return false end return true end
 local function move(offset) local list = filtered() if #list == 0 then return end closeAction() Inv.selected = clamp(Inv.selected + offset, 1, #list) normalize(list) end
 local function nextCategory() local cats, cur = categoryOrder(), 1 for i, id in ipairs(cats) do if id == Inv.category then cur = i break end end cur = cur + 1 if cur > #cats then cur = 1 end closeAction() Inv.category, Inv.selected, Inv.scroll = cats[cur], 1, 0 end
 
+local function handlePromptKey(button)
+    if not Inv.prompt then return false end
+    if button == "backspace" then if Inv.prompt.field == "price" then Inv.prompt.price = string.sub(Inv.prompt.price or "", 1, math.max(0, #(Inv.prompt.price or "") - 1)) else Inv.prompt.amount = string.sub(Inv.prompt.amount or "", 1, math.max(0, #(Inv.prompt.amount or "") - 1)) end cancelEvent() return true end
+    if button == "tab" and Inv.prompt.action.prompt == "sale" then Inv.prompt.field = Inv.prompt.field == "price" and "amount" or "price" cancelEvent() return true end
+    if button == "enter" then confirmPrompt() cancelEvent() return true end
+    if button == "escape" then Inv.prompt = nil cancelEvent() return true end
+    cancelEvent()
+    return true
+end
+
 local function handleKey(button, press)
     if not press then return end
     button = tostring(button or ""):lower()
+    if Inv.visible and Inv.prompt then if handlePromptKey(button) then return end end
     if Inv.visible and Inv.editing then if button == "backspace" then Inv.editText = string.sub(Inv.editText or "", 1, math.max(0, #(Inv.editText or "") - 1)) cancelEvent() return end if button == "enter" then runAction({ id = "notebook_save" }) cancelEvent() return end if button == "escape" then Inv.editing = false cancelEvent() return end cancelEvent() return end
     if button == "e" and Inv.nearDrop and not Inv.visible then if Inv.nearDrop.cash == true or Inv.nearDrop.itemId == "cash" then triggerServerEvent("HeavyRPG:Inventory:pickupCashDrop", resourceRoot, Inv.nearDrop.id) else triggerServerEvent("HeavyRPG:Inventory:pickupDrop", resourceRoot, Inv.nearDrop.id) end cancelEvent() return end
     if button == tostring(cfg().key or "i") then if not canToggle() then return end setVisible(not Inv.visible) cancelEvent() return end
@@ -256,6 +301,8 @@ addEvent("HeavyRPG:Inventory:sync", true)
 addEventHandler("HeavyRPG:Inventory:sync", resourceRoot, function(payload) payload = type(payload) == "table" and payload or {} Inv.blocked = false Inv.items = type(payload.items) == "table" and payload.items or {} Inv.categories = type(payload.categories) == "table" and payload.categories or {} Inv.currentWeight = tonumber(payload.currentWeight) or 0 Inv.maxWeight = tonumber(payload.maxWeight) or 35 normalize(filtered()) end)
 addEvent("HeavyRPG:Inventory:open", true)
 addEventHandler("HeavyRPG:Inventory:open", resourceRoot, function() setVisible(true) end)
+addEvent("HeavyRPG:Inventory:close", true)
+addEventHandler("HeavyRPG:Inventory:close", resourceRoot, function() setVisible(false) end)
 addEvent("HeavyRPG:Inventory:nearDrop", true)
 addEventHandler("HeavyRPG:Inventory:nearDrop", resourceRoot, function(state, payload) if state then Inv.nearDrop = type(payload) == "table" and payload or nil else Inv.nearDrop = nil end end)
 addEvent("HeavyRPG:Inventory:action", true)
