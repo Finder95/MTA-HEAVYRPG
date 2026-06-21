@@ -118,7 +118,10 @@ end
 local function panelKey(button, press)
     if not Panel.visible then return end
     local key = tostring(button or ""):lower()
-    if press and (key == "escape" or key == "f2") then
+    if key == "mouse_wheel_up" or key == "mouse_wheel_down" then
+        wheel(key)
+        cancelEvent()
+    elseif press and (key == "escape" or key == "f2") then
         setVisible(false)
         cancelEvent()
     elseif key == "t" or key == "y" or key == "u" then
