@@ -24,6 +24,10 @@ end
 
 function HRP.Utils.safePlayerName(player)
     if isElement(player) and getElementType(player) == "player" then
+        local characterName = getElementData(player, "hrp:character:name")
+        if type(characterName) == "string" and HRP.Utils.trim(characterName) ~= "" then
+            return HRP.Utils.trim(characterName):gsub("#%x%x%x%x%x%x", "")
+        end
         return getPlayerName(player):gsub("#%x%x%x%x%x%x", "")
     end
     return "unknown"
