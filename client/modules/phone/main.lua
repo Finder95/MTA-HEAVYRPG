@@ -13,7 +13,8 @@ HRP.ClientPhone = HRP.ClientPhone or {
     w = 390,
     h = 780,
     lastCursorX = 0,
-    lastCursorY = 0
+    lastCursorY = 0,
+    selfieSource = nil
 }
 
 local Phone = HRP.ClientPhone
@@ -135,6 +136,31 @@ local function closePhone()
     setVisible(false)
 end
 
+local function selfieStatus(ok, message, path)
+    emit("phone:selfieStatus", { ok = ok == true, message = tostring(message or ""), path = tostring(path or "") })
+end
+
+local function takeSelfie()
+    local sx, sy = guiGetScreenSize()
+    if not Phone.selfieSource then Phone.selfieSource = dxCreateScreenSource(sx, sy) end
+    if not Phone.selfieSource then selfieStatus(false, "Aparat nie mogl utworzyc zrodla obrazu.") return end
+
+    dxUpdateScreenSource(Phone.selfieSource, true)
+    local pixels = dxGetTexturePixels(Phone.selfieSource)
+    if not pixels then selfieStatus(false, "Aparat nie mogl pobrac obrazu. Sprawdz ustawienia screen upload.") return end
+
+    local jpeg = dxConvertPixels(pixels, "jpeg", 88)
+    if not jpeg then selfieStatus(false, "Aparat nie mogl zapisac JPEG.") return end
+
+    local timestamp = getRealTime().timestamp or getTickCount()
+    local path = "phone_selfie_" .. tostring(timestamp) .. ".jpg"
+    local file = fileCreate(path)
+    if not file then selfieStatus(false, "Nie udalo sie utworzyc pliku selfie.") return end
+    fileWrite(file, jpeg)
+    fileClose(file)
+    selfieStatus(true, "Selfie zapisane: " .. path, path)
+end
+
 addEvent("HeavyRPG:Phone:open", true)
 addEventHandler("HeavyRPG:Phone:open", resourceRoot, function(payload) openPhone(payload or {}) end)
 
@@ -170,6 +196,9 @@ addEventHandler("HeavyRPG:UI:phone:call", root, function(jsonPayload)
     triggerServerEvent("HeavyRPG:Phone:call", resourceRoot, decodePayload(jsonPayload))
 end)
 
+addEvent("HeavyRPG:UI:phone:selfie", true)
+addEventHandler("HeavyRPG:UI:phone:selfie", root, takeSelfie)
+
 bindKey("backspace", "down", function()
     if Phone.visible then emit("phone:back", {}) cancelEvent() end
 end)
@@ -180,4 +209,8 @@ end)
 
 bindKey(HRP.Config.ui.toggleDevToolsKey, "down", function()
     if Phone.browser and Phone.visible then toggleBrowserDevTools(Phone.browser, true) end
+end)
+
+addEventHandler("onClientResourceStop", resourceRoot, function()
+    if Phone.selfieSource and isElement(Phone.selfieSource) then destroyElement(Phone.selfieSource) end
 end)
