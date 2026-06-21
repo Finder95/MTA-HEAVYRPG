@@ -4,6 +4,9 @@ local HRP = HeavyRPG
 local placedNotes = {}
 local MAX_BODY = 1200
 local MAX_PAGES = 12
+local DEFAULT_VEHICLE_ATTACH_X = 0
+local DEFAULT_VEHICLE_ATTACH_Y = 1.25
+local DEFAULT_VEHICLE_ATTACH_Z = 0.55
 
 local function now() return HRP.Utils.now() end
 local function getCharacterId(player) return tonumber(getElementData(player, "hrp:character:id")) end
@@ -45,24 +48,11 @@ local function matrixPoint(matrix, lx, ly, lz)
         lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
 end
 
-local function vehicleWindshieldOffset(vehicle)
-    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
-    if not minX then return 0, 1.25, 0.55 end
-
-    local length = math.max(0.1, maxY - minY)
-    local height = math.max(0.1, maxZ - minZ)
-    local y = maxY - math.max(0.35, length * 0.20)
-    local z = minZ + height * 0.64
-    return 0, y, z
-end
-
-local function vehicleNotePoint(player, vehicle)
+local function vehicleNotePoint(vehicle)
     local vx, vy, vz = getElementPosition(vehicle)
     local matrix = getElementMatrix(vehicle)
     if not matrix then return vx, vy, vz + 1.05 end
-
-    local x, y, z = vehicleWindshieldOffset(vehicle)
-    return matrixPoint(matrix, x, y, z)
+    return matrixPoint(matrix, DEFAULT_VEHICLE_ATTACH_X, DEFAULT_VEHICLE_ATTACH_Y, DEFAULT_VEHICLE_ATTACH_Z)
 end
 
 local function normalizeNotebook(metadata)
@@ -188,7 +178,7 @@ local function createPlacedNote(note)
         setElementDimension(note.marker, note.dimension or 0)
         setElementData(note.marker, "hrp:placed_note:id", note.id, false)
         if note.vehicle and isElement(note.vehicle) then
-            attachElements(note.marker, note.vehicle, note.attachX or 0, note.attachY or 1.9, note.attachZ or 0.25, 0, 0, 0)
+            attachElements(note.marker, note.vehicle, note.attachX or DEFAULT_VEHICLE_ATTACH_X, note.attachY or DEFAULT_VEHICLE_ATTACH_Y, note.attachZ or DEFAULT_VEHICLE_ATTACH_Z, 0, 0, 0)
         end
         if HRP.InventoryNoteVisual and HRP.InventoryNoteVisual.ensure then HRP.InventoryNoteVisual.ensure(note.marker, note) end
         addEventHandler("onMarkerHit", note.marker, function(hitElement, matchingDimension)
@@ -290,7 +280,11 @@ local function placeNote(player, uid, placeType, x, y, z, target)
     if placeType == "vehicle" then
         local vx, vy, vz = getElementPosition(target)
         if getDistanceBetweenPoints3D(px, py, pz, vx, vy, vz) > 5.2 then return false, "Podejdz blizej do pojazdu." end
-        x, y, z = vehicleNotePoint(player, target)
+        if not x or not y or not z then
+            x, y, z = vehicleNotePoint(target)
+        elseif getDistanceBetweenPoints3D(vx, vy, vz, x, y, z) > 6.5 then
+            return false, "Nie udalo sie ustalic miejsca za wycieraczka. Podejdz blizej do przodu pojazdu."
+        end
     elseif not x or not y or not z or getDistanceBetweenPoints3D(px, py, pz, x, y, z) > 5.0 then
         return false, "Jestes za daleko od miejsca przyklejenia."
     end
@@ -300,6 +294,9 @@ local function placeNote(player, uid, placeType, x, y, z, target)
     local attachX, attachY, attachZ
     if placeType == "vehicle" then
         attachX, attachY, attachZ = worldToElementLocal(target, x, y, noteZ)
+        if not attachX then
+            attachX, attachY, attachZ = DEFAULT_VEHICLE_ATTACH_X, DEFAULT_VEHICLE_ATTACH_Y, DEFAULT_VEHICLE_ATTACH_Z
+        end
     end
 
     local note = {
