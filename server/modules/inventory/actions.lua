@@ -1,6 +1,8 @@
 HeavyRPG = HeavyRPG or {}
 local HRP = HeavyRPG
 
+local cashDrops = {}
+
 local function notify(player, message, r, g, b)
     if isElement(player) then
         outputChatBox("[EQ] " .. tostring(message), player, r or 210, g or 198, b or 164)
@@ -20,16 +22,16 @@ local function quantity(value)
     return value
 end
 
-local function getCharacterId(player)
-    return tonumber(getElementData(player, "hrp:character:id"))
-end
+local function now() return HRP.Utils.now() end
+local function getCharacterId(player) return tonumber(getElementData(player, "hrp:character:id")) end
+local function getAccountId(player) return tonumber(getElementData(player, "hrp:account:id")) end
 
 local function saveCash(player)
     local characterId = getCharacterId(player)
     if not characterId then return false end
     return HRP.DB.exec([[UPDATE characters SET cash = ?, updated_at = ? WHERE id = ?]], {
         money(getPlayerMoney(player)),
-        HRP.Utils.now(),
+        now(),
         characterId
     })
 end
@@ -84,6 +86,72 @@ local function itemSellPrice(item)
     return math.max(1, math.floor(base * quality))
 end
 
+local function destroyCashDrop(dropId)
+    local drop = cashDrops[tostring(dropId)]
+    if not drop then return end
+    if drop.marker and isElement(drop.marker) then destroyElement(drop.marker) end
+    if drop.object and isElement(drop.object) then destroyElement(drop.object) end
+    cashDrops[tostring(dropId)] = nil
+end
+
+local function makeDropId(player)
+    return table.concat({ "cash", tostring(now()), tostring(getTickCount()), tostring(math.random(100000, 999999)), tostring(getCharacterId(player) or 0) }, "_")
+end
+
+local function createCashDropElements(drop)
+    drop.marker = createMarker(drop.x, drop.y, drop.z, "cylinder", 1.05, 190, 157, 87, 95)
+    drop.object = createObject(1212, drop.x, drop.y, drop.z + 0.12, 0, 0, drop.rotation or 0)
+    if drop.marker and isElement(drop.marker) then
+        setElementInterior(drop.marker, drop.interior or 0)
+        setElementDimension(drop.marker, drop.dimension or 0)
+        setElementData(drop.marker, "hrp:drop:id", drop.id, false)
+        addEventHandler("onMarkerHit", drop.marker, function(hitElement, matchingDimension)
+            if matchingDimension and isElement(hitElement) and getElementType(hitElement) == "player" then
+                triggerClientEvent(hitElement, "HeavyRPG:Inventory:nearDrop", resourceRoot, true, {
+                    id = drop.id,
+                    label = "Gotowka",
+                    itemId = "cash",
+                    quantity = drop.quantity,
+                    cash = true,
+                    createdAt = drop.createdAt
+                })
+            end
+        end)
+        addEventHandler("onMarkerLeave", drop.marker, function(hitElement, matchingDimension)
+            if matchingDimension and isElement(hitElement) and getElementType(hitElement) == "player" then
+                triggerClientEvent(hitElement, "HeavyRPG:Inventory:nearDrop", resourceRoot, false, { id = drop.id, cash = true })
+            end
+        end)
+    end
+    if drop.object and isElement(drop.object) then
+        setElementInterior(drop.object, drop.interior or 0)
+        setElementDimension(drop.object, drop.dimension or 0)
+        setElementCollisionsEnabled(drop.object, false)
+    end
+    cashDrops[drop.id] = drop
+end
+
+local function persistCashDrop(drop)
+    return HRP.DB.exec([[INSERT INTO world_inventory_drops
+        (id, item_id, label, description, category, quantity, weight, quality, state, metadata_json, flags, model,
+        pos_x, pos_y, pos_z, rotation, interior, dimension, dropped_by_character_id, dropped_by_account_id, created_at, updated_at)
+        VALUES(?, 'cash', 'Gotowka', 'Fizycznie wyrzucona gotowka.', 'money', ?, 0, 100, ?, '{}', 'money,virtual', 1212, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
+            drop.id,
+            drop.quantity,
+            "$" .. tostring(drop.quantity),
+            drop.x,
+            drop.y,
+            drop.z,
+            drop.rotation,
+            drop.interior,
+            drop.dimension,
+            drop.droppedByCharacterId,
+            drop.droppedByAccountId,
+            drop.createdAt,
+            drop.updatedAt
+        })
+end
+
 local function findNotebook(player, uid)
     uid = tonumber(uid)
     for _, item in ipairs((HRP.Inventory and HRP.Inventory.getItems and HRP.Inventory.getItems(player)) or {}) do
@@ -107,7 +175,7 @@ local function saveNotebook(player, uid, text)
         SET metadata_json = ?, updated_at = ?
         WHERE id = ? AND character_id = ?]], {
             toJSON(metadata, true) or "{}",
-            HRP.Utils.now(),
+            now(),
             item.uid,
             getCharacterId(player)
         })
@@ -135,9 +203,34 @@ local function dropCash(player, amount)
     amount = money(amount)
     if amount <= 0 then return false, "Podaj poprawna kwote." end
     if money(getPlayerMoney(player)) < amount then return false, "Nie masz tyle gotowki." end
-    if not HRP.Inventory or not HRP.Inventory.drop then return false, "System dropow nie jest dostepny." end
-    local ok, message = HRP.Inventory.drop(player, -1, amount)
-    return ok, message
+
+    local x, y, z = getElementPosition(player)
+    local _, _, rz = getElementRotation(player)
+    local timestamp = now()
+    local drop = {
+        id = makeDropId(player),
+        quantity = amount,
+        x = x,
+        y = y,
+        z = z - 0.85,
+        rotation = rz or 0,
+        interior = getElementInterior(player),
+        dimension = getElementDimension(player),
+        droppedByCharacterId = getCharacterId(player),
+        droppedByAccountId = getAccountId(player),
+        createdAt = timestamp,
+        updatedAt = timestamp
+    }
+
+    takePlayerMoney(player, amount)
+    syncMoney(player)
+    if not persistCashDrop(drop) then
+        givePlayerMoney(player, amount)
+        syncMoney(player)
+        return false, "Nie udalo sie zapisac dropu gotowki. Gotowka wrocila do kieszeni."
+    end
+    createCashDropElements(drop)
+    return true, "Wyrzucono gotowke na ziemie: $" .. tostring(amount) .. "."
 end
 
 local function giveItem(player, uid, amount)
@@ -169,6 +262,22 @@ local function sellItem(player, uid, amount)
     return true, "Sprzedano: " .. tostring(item.label) .. " x" .. tostring(amount) .. " za $" .. tostring(price) .. "."
 end
 
+addEvent("HeavyRPG:Inventory:pickupCashDrop", true)
+addEventHandler("HeavyRPG:Inventory:pickupCashDrop", resourceRoot, function(dropId)
+    local player = client
+    local drop = cashDrops[tostring(dropId or "")]
+    if not isElement(player) or not drop then return end
+    if getElementInterior(player) ~= drop.interior or getElementDimension(player) ~= drop.dimension then notify(player, "Jestes za daleko.", 230, 90, 80) return end
+    local px, py, pz = getElementPosition(player)
+    if getDistanceBetweenPoints3D(px, py, pz, drop.x, drop.y, drop.z) > 2.5 then notify(player, "Jestes za daleko.", 230, 90, 80) return end
+    givePlayerMoney(player, drop.quantity)
+    syncMoney(player)
+    HRP.DB.exec([[DELETE FROM world_inventory_drops WHERE id = ?]], { drop.id })
+    destroyCashDrop(drop.id)
+    triggerClientEvent(player, "HeavyRPG:Inventory:nearDrop", resourceRoot, false, { id = drop.id, cash = true })
+    notify(player, "Podniesiono gotowke: $" .. tostring(drop.quantity) .. ".", 180, 220, 170)
+end)
+
 addEvent("HeavyRPG:Inventory:menuAction", true)
 addEventHandler("HeavyRPG:Inventory:menuAction", resourceRoot, function(action, payload)
     local player = client
@@ -199,4 +308,8 @@ addEventHandler("HeavyRPG:Inventory:menuAction", resourceRoot, function(action, 
     end
 
     notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+end)
+
+addEventHandler("onResourceStop", resourceRoot, function()
+    for dropId in pairs(cashDrops) do destroyCashDrop(dropId) end
 end)
