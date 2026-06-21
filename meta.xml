@@ -26,6 +26,7 @@
     <script src="server/modules/inventory/main.lua" type="server" />
     <script src="server/modules/inventory/actions.lua" type="server" />
     <script src="server/modules/inventory/notes.lua" type="server" />
+    <script src="server/modules/inventory/note_visual.lua" type="server" />
 
     <!-- Server bootstrap must be loaded after modules -->
     <script src="server/core/boot.lua" type="server" />
