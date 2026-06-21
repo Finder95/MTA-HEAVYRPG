@@ -23,6 +23,7 @@
     <script src="server/modules/bank/main.lua" type="server" />
     <script src="server/modules/payday/main.lua" type="server" />
     <script src="server/modules/inventory/main.lua" type="server" />
+    <script src="server/modules/inventory/actions.lua" type="server" />
 
     <!-- Server bootstrap must be loaded after modules -->
     <script src="server/core/boot.lua" type="server" />
