@@ -13,7 +13,8 @@ HRP.ClientAdmin = HRP.ClientAdmin or {
     w = 1480,
     h = 860,
     lastX = 0,
-    lastY = 0
+    lastY = 0,
+    spectating = false
 }
 
 local Panel = HRP.ClientAdmin
@@ -123,6 +124,7 @@ local function openPanel(payload)
     if ensureBrowser(function() emit("admin:open", Panel.pending) end) then
         setVisible(true)
         triggerServerEvent("HeavyRPG:Admin:request", resourceRoot)
+        triggerServerEvent("HeavyRPG:Admin:advancedRequest", resourceRoot)
     end
 end
 
@@ -134,15 +136,39 @@ addEventHandler("HeavyRPG:Admin:open", resourceRoot, openPanel)
 addEvent("HeavyRPG:Admin:data", true)
 addEventHandler("HeavyRPG:Admin:data", resourceRoot, function(payload) emit("admin:data", payload or {}) end)
 
+addEvent("HeavyRPG:Admin:advancedData", true)
+addEventHandler("HeavyRPG:Admin:advancedData", resourceRoot, function(payload) emit("admin:advancedData", payload or {}) end)
+
+addEvent("HeavyRPG:Admin:spectate", true)
+addEventHandler("HeavyRPG:Admin:spectate", resourceRoot, function(target)
+    if isElement(target) then
+        Panel.spectating = true
+        setCameraTarget(target)
+        setVisible(false)
+        outputChatBox("[APANEL] Spectate aktywny. Otworz /apanel lub uzyj Stop spectate, aby wrocic.", 210, 198, 164)
+    else
+        Panel.spectating = false
+        setCameraTarget(localPlayer)
+    end
+end)
+
 addEvent("HeavyRPG:UI:admin:close", true)
 addEventHandler("HeavyRPG:UI:admin:close", root, closePanel)
 
 addEvent("HeavyRPG:UI:admin:request", true)
-addEventHandler("HeavyRPG:UI:admin:request", root, function() triggerServerEvent("HeavyRPG:Admin:request", resourceRoot) end)
+addEventHandler("HeavyRPG:UI:admin:request", root, function()
+    triggerServerEvent("HeavyRPG:Admin:request", resourceRoot)
+    triggerServerEvent("HeavyRPG:Admin:advancedRequest", resourceRoot)
+end)
 
 addEvent("HeavyRPG:UI:admin:action", true)
 addEventHandler("HeavyRPG:UI:admin:action", root, function(action, payload)
     triggerServerEvent("HeavyRPG:Admin:action", resourceRoot, tostring(action or ""), decodePayload(payload))
+end)
+
+addEvent("HeavyRPG:UI:admin:advanced", true)
+addEventHandler("HeavyRPG:UI:admin:advanced", root, function(action, payload)
+    triggerServerEvent("HeavyRPG:Admin:advanced", resourceRoot, tostring(action or ""), decodePayload(payload))
 end)
 
 bindKey("escape", "down", function() if Panel.visible then closePanel() cancelEvent() end end)
@@ -151,4 +177,7 @@ bindKey(HRP.Config.ui and HRP.Config.ui.toggleDevToolsKey or "F6", "down", funct
     if Panel.visible and Panel.browser then toggleBrowserDevTools(Panel.browser, true) end
 end)
 
-addEventHandler("onClientResourceStop", resourceRoot, function() setVisible(false) end)
+addEventHandler("onClientResourceStop", resourceRoot, function()
+    if Panel.spectating then setCameraTarget(localPlayer) end
+    setVisible(false)
+end)
