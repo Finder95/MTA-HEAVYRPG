@@ -149,20 +149,29 @@ local function closeAction()
     Inv.actionBounds = {}
 end
 
+local function addAction(actions, id, label, amount)
+    actions[#actions + 1] = { id = id, label = label, amount = amount }
+end
+
+local function itemAmount(item, mode)
+    if not item then return 1 end
+    if item.itemId == "cash" then return mode == "all" and (item.quantity or 0) or 100 end
+    if mode == "stack" then return item.quantity or 1 end
+    return 1
+end
+
 local function makeActionForItem(item)
     if not item then return nil end
+    local actions = {}
+    local lines = {}
+
     if item.itemId == "cash" then
-        return {
-            title = "Gotowka w kieszeni",
-            item = item,
-            lines = { "Przy sobie: " .. moneyText(item.quantity), "Zarzadzaj gotowka bez wychodzenia z ekwipunku." },
-            actions = {
-                { id = "cash_deposit_all", label = "Wplac calosc do banku" },
-                { id = "cash_deposit", label = "Wplac $100", amount = 100 },
-                { id = "cash_withdraw", label = "Wyplac $100", amount = 100 },
-                { id = "cash_withdraw", label = "Wyplac $500", amount = 500 }
-            }
-        }
+        lines = { "Przy sobie: " .. moneyText(item.quantity), "Gotowka to fizyczna kasa postaci. Bank zostaje poza ekwipunkiem." }
+        addAction(actions, "cash_give", "Przekaz $100 najblizszemu", 100)
+        addAction(actions, "cash_give", "Przekaz $500 najblizszemu", 500)
+        addAction(actions, "cash_drop", "Wyrzuc $100 na ziemie", 100)
+        addAction(actions, "cash_drop_all", "Wyrzuc cala gotowke", itemAmount(item, "all"))
+        return { title = "Zarzadzanie gotowka", item = item, lines = lines, actions = actions }
     end
 
     if item.itemId == "notebook" then
@@ -170,12 +179,14 @@ local function makeActionForItem(item)
         return {
             title = "Notes postaci",
             item = item,
-            lines = { "Edytuj notatke ponizej. ENTER zapisuje, ESC wraca." },
+            lines = { "Prywatna notatka zapisana na tym konkretnym przedmiocie." },
             editor = true,
             text = tostring(note or ""),
             actions = {
                 { id = "notebook_edit", label = "Edytuj notatke" },
-                { id = "notebook_save", label = "Zapisz notatke" }
+                { id = "notebook_save", label = "Zapisz notatke" },
+                { id = "item_give", label = "Przekaz notes najblizszemu", amount = 1 },
+                { id = "item_drop", label = "Wyrzuc notes", amount = 1 }
             }
         }
     end
@@ -184,30 +195,29 @@ local function makeActionForItem(item)
         return {
             title = "Telefon komorkowy",
             item = item,
-            lines = { "Stan: wlaczony", "Numer: nieprzypisany", "Gotowe miejsce pod kontakty, SMS, ogloszenia i aplikacje RP." },
-            actions = { { id = "noop", label = "Modul telefonu wkrotce" } }
+            lines = { "Modul telefonu: numer, kontakty, SMS i status aparatu." },
+            actions = {
+                { id = "phone_open", label = "Otworz telefon" },
+                { id = "phone_contacts", label = "Pokaz kontakty" },
+                { id = "phone_sms_help", label = "Instrukcja SMS" },
+                { id = "item_give", label = "Przekaz telefon najblizszemu", amount = 1 },
+                { id = "item_drop", label = "Wyrzuc telefon", amount = 1 }
+            }
         }
     end
 
-    if item.itemId == "id_card" then
-        return {
-            title = "Dowod osobisty",
-            item = item,
-            lines = { "Dokument postaci. Mozesz go okazac osobom w poblizu." },
-            actions = { { id = "server_use", label = "Okaz dokument w poblizu" } }
-        }
+    if item.usable == true or utilityItems[item.itemId] == true then addAction(actions, "server_use", item.category == "consumable" and "Uzyj / spozyj" or "Uzyj") end
+    if not item.virtual then
+        addAction(actions, "item_give", "Przekaz 1 szt. najblizszemu", itemAmount(item, "one"))
+        if (item.quantity or 1) > 1 then addAction(actions, "item_give", "Przekaz caly stos", itemAmount(item, "stack")) end
+        addAction(actions, "item_drop", "Wyrzuc 1 szt. na ziemie", itemAmount(item, "one"))
+        if (item.quantity or 1) > 1 then addAction(actions, "item_drop", "Wyrzuc caly stos", itemAmount(item, "stack")) end
+        addAction(actions, "item_sell", "Sprzedaj 1 szt.", itemAmount(item, "one"))
     end
+    if #actions == 0 then addAction(actions, "noop", "Brak dostepnych akcji") end
 
-    if item.itemId == "lockpick" then
-        return {
-            title = "Wytrych",
-            item = item,
-            lines = { "Narzedzie pod system drzwi, pojazdow i wlaman.", "Obecnie brak celu uzycia w zasiegu." },
-            actions = { { id = "noop", label = "Brak celu" } }
-        }
-    end
-
-    return nil
+    lines = { tostring(item.description or "Brak opisu."), "Wszystkie akcje wykonujesz z tego menu, bez skrotow wyrzucania." }
+    return { title = "Zarzadzaj przedmiotem", item = item, lines = lines, actions = actions }
 end
 
 local function drawWeightBar(x, y, w, h)
@@ -311,7 +321,7 @@ local function drawActionPane(scale, item)
         yy = yy + bh + 8 * scale
     end
 
-    shadowText("ESC - wroc do szczegolow    ENTER - wykonaj", x + 18 * scale, y + h - 32 * scale, x + w - 18 * scale, y + h - 12 * scale, color("muted", 210), 0.62 * scale, "default-bold", "center")
+    shadowText("ESC - wroc    ENTER - wykonaj", x + 18 * scale, y + h - 32 * scale, x + w - 18 * scale, y + h - 12 * scale, color("muted", 210), 0.62 * scale, "default-bold", "center")
     return true
 end
 
@@ -336,12 +346,9 @@ local function drawDetails(scale, item)
     shadowText("Opis", x + 18 * scale, yy, x + w - 18 * scale, yy + 20 * scale, color("muted", 230), 0.68 * scale, "default-bold")
     shadowText(item.description or "Brak opisu.", x + 18 * scale, yy + 24 * scale, x + w - 18 * scale, y + h - 94 * scale, color("text", 225), 0.72 * scale, "default", "left", "top", true, true)
 
-    local canUse = item.usable == true or utilityItems[item.itemId] == true
-    local actionY = y + h - 74 * scale
-    shadowText("ENTER", x + 18 * scale, actionY, x + 92 * scale, actionY + 22 * scale, canUse and color("accent", 230) or color("muted", 150), 0.72 * scale, "default-bold")
-    shadowText(canUse and "Zarzadzaj / uzyj" or "Brak akcji", x + 96 * scale, actionY, x + w - 18 * scale, actionY + 22 * scale, color("text", 220), 0.72 * scale, "default-bold")
-    shadowText("BACKSPACE", x + 18 * scale, actionY + 28 * scale, x + 118 * scale, actionY + 50 * scale, item.virtual and color("muted", 135) or color("danger", 220), 0.72 * scale, "default-bold")
-    shadowText(item.virtual and "Nie mozna wyrzucic" or "Wyrzuc na ziemie", x + 120 * scale, actionY + 28 * scale, x + w - 18 * scale, actionY + 50 * scale, color("text", 220), 0.72 * scale, "default-bold")
+    local actionY = y + h - 48 * scale
+    shadowText("ENTER", x + 18 * scale, actionY, x + 92 * scale, actionY + 22 * scale, color("accent", 230), 0.72 * scale, "default-bold")
+    shadowText("Zarzadzaj przedmiotem", x + 96 * scale, actionY, x + w - 18 * scale, actionY + 22 * scale, color("text", 220), 0.72 * scale, "default-bold")
 end
 
 local function drawInventory()
@@ -361,7 +368,7 @@ local function drawInventory()
     drawCategories(scale)
     drawList(scale, list)
     drawDetails(scale, item)
-    shadowText("I / ESC - zamknij    TAB / klik - kategoria    ENTER - akcje    BACKSPACE - wyrzuc 1    DEL - wyrzuc stos", Inv.x + 22 * scale, Inv.y + Inv.h - 42 * scale, Inv.x + Inv.w - 22 * scale, Inv.y + Inv.h - 18 * scale, color("muted", 225), 0.66 * scale, "default-bold", "center")
+    shadowText("I / ESC - zamknij    TAB / klik - kategoria    ENTER - zarzadzaj", Inv.x + 22 * scale, Inv.y + Inv.h - 42 * scale, Inv.x + Inv.w - 22 * scale, Inv.y + Inv.h - 18 * scale, color("muted", 225), 0.66 * scale, "default-bold", "center")
 end
 
 local function drawDropPrompt(scale, sx, sy)
@@ -391,7 +398,7 @@ local function runMenuAction(btn)
         return
     end
     if btn.id == "notebook_save" then
-        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_save", toJSON({ text = Inv.editText or "" }, true))
+        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, "notebook_save", toJSON({ uid = Inv.action.item.uid, text = Inv.editText or "" }, true))
         Inv.editing = false
         return
     end
@@ -399,7 +406,9 @@ local function runMenuAction(btn)
         triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, Inv.action.item.uid, Inv.action.item.itemId)
         return
     end
-    triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, btn.id, toJSON({ amount = btn.amount or 0 }, true))
+    if Inv.action and Inv.action.item then
+        triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, btn.id, toJSON({ uid = Inv.action.item.uid, itemId = Inv.action.item.itemId, amount = btn.amount or 1 }, true))
+    end
 end
 
 function Inv.handleClick(button, state, absX, absY)
@@ -476,24 +485,15 @@ local function moveSelection(offset)
     normalizeSelection(list)
 end
 
-local function selectedAction(action)
+local function selectedAction()
     local item = selectedItem()
     if not item then return end
-    if action == "use" then
-        local localAction = makeActionForItem(item)
-        if localAction then
-            Inv.action = localAction
-            Inv.action.selected = 1
-            Inv.editText = localAction.text or ""
-            Inv.editing = false
-        elseif item.usable then
-            triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, item.uid, item.itemId)
-        end
-        return
+    Inv.action = makeActionForItem(item)
+    if Inv.action then
+        Inv.action.selected = 1
+        Inv.editText = Inv.action.text or ""
+        Inv.editing = false
     end
-    if item.virtual then return end
-    if action == "drop_one" then triggerServerEvent("HeavyRPG:Inventory:drop", resourceRoot, item.uid, 1) end
-    if action == "drop_stack" then triggerServerEvent("HeavyRPG:Inventory:drop", resourceRoot, item.uid, item.quantity or 1) end
 end
 
 local function handleKey(button, press)
@@ -537,9 +537,7 @@ local function handleKey(button, press)
     elseif button == "mouse_wheel_up" then moveSelection(-3) cancelEvent()
     elseif button == "mouse_wheel_down" then moveSelection(3) cancelEvent()
     elseif button == "tab" then nextCategory() cancelEvent()
-    elseif button == "enter" then selectedAction("use") cancelEvent()
-    elseif button == "backspace" then selectedAction("drop_one") cancelEvent()
-    elseif button == "delete" then selectedAction("drop_stack") cancelEvent() end
+    elseif button == "enter" then selectedAction() cancelEvent() end
 end
 
 local function blockInventory()
