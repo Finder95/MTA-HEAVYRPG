@@ -66,6 +66,47 @@ local function safeBody(body)
     return body
 end
 
+local function lastSunday(year, month)
+    local day = 31
+    while day > 24 do
+        local t = getRealTime(os.time({ year = year, month = month, day = day, hour = 12, min = 0, sec = 0 }), false)
+        if t and tonumber(t.weekday) == 0 then return day end
+        day = day - 1
+    end
+    return 31
+end
+
+local function warsawOffset(timestamp)
+    local utc = getRealTime(timestamp, false)
+    local year = (tonumber(utc.year) or 126) + 1900
+    local march = lastSunday(year, 3)
+    local october = lastSunday(year, 10)
+    local dstStart = os.time({ year = year, month = 3, day = march, hour = 1, min = 0, sec = 0 })
+    local dstEnd = os.time({ year = year, month = 10, day = october, hour = 1, min = 0, sec = 0 })
+    return (timestamp >= dstStart and timestamp < dstEnd) and 7200 or 3600
+end
+
+local function warsawTime()
+    local real = getRealTime(nil, false)
+    local timestamp = tonumber(real and real.timestamp) or now()
+    local offset = warsawOffset(timestamp)
+    local localTime = getRealTime(timestamp + offset, false)
+    return {
+        hour = tonumber(localTime.hour) or 0,
+        minute = tonumber(localTime.minute) or 0,
+        second = tonumber(localTime.second) or 0,
+        timestamp = timestamp,
+        timezone = offset == 7200 and "CEST" or "CET"
+    }
+end
+
+local function syncWorldTime()
+    local time = warsawTime()
+    setTime(time.hour, time.minute)
+    setMinuteDuration(60000)
+    return time
+end
+
 function Phone.ensureNumber(player, callback)
     local characterId = getCharacterId(player)
     if not characterId then if callback then callback(false, "Brak aktywnej postaci.") end return false end
@@ -103,7 +144,10 @@ local function buildPayload(player, callback)
         local characterId = getCharacterId(player)
         HRP.DB.query([[SELECT name, phone_number FROM phone_contacts WHERE owner_character_id = ? ORDER BY name ASC LIMIT 50]], { characterId }, function(contactRows)
             HRP.DB.query([[SELECT sender_number, receiver_number, body, created_at, read_at FROM phone_messages WHERE receiver_number = ? OR sender_number = ? ORDER BY created_at DESC LIMIT 40]], { number, number }, function(messageRows)
-                local contacts, messages = {}, {}
+                local contacts, messages = {
+                    { name = "Moj numer", number = tostring(number), system = true },
+                    { name = "Alarmowy", number = "112", system = true, placeholder = true }
+                }, {}
                 for _, row in ipairs(contactRows or {}) do
                     contacts[#contacts + 1] = { name = tostring(row.name or "Kontakt"), number = tostring(row.phone_number or "") }
                 end
@@ -116,7 +160,7 @@ local function buildPayload(player, callback)
                         incoming = tostring(row.receiver_number or "") == tostring(number)
                     }
                 end
-                if callback then callback(true, { number = number, status = "active", contacts = contacts, messages = messages }) end
+                if callback then callback(true, { number = number, status = "active", time = warsawTime(), contacts = contacts, messages = messages }) end
             end)
         end)
     end)
@@ -267,6 +311,8 @@ end)
 local module = {}
 function module.onStart()
     if not ensureSchema() then return end
+    syncWorldTime()
+    setTimer(syncWorldTime, 60000, 0)
     addEventHandler("HeavyRPG:Character:onPlayerReady", resourceRoot, attachPlayer)
     addCommandHandler("telefon", handlePhoneCommand)
     addCommandHandler("kontakty", handleContactsCommand)
