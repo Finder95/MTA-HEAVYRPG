@@ -150,6 +150,10 @@ local function notePosition(note)
     return note.x, note.y, note.z
 end
 
+local function isVehicleNote(note)
+    return type(note) == "table" and (tostring(note.placeType or "") == "vehicle_windshield" or (note.vehicle and isElement(note.vehicle) and getElementType(note.vehicle) == "vehicle"))
+end
+
 local function worldToElementLocal(element, wx, wy, wz)
     local matrix = isElement(element) and getElementMatrix(element)
     if not matrix then return nil end
@@ -171,20 +175,28 @@ end
 
 local function createPlacedNote(note)
     if not note or not note.id or note.id == "" then return false end
+    note.placeType = tostring(note.placeType or "world")
     destroyPlacedNote(note.id)
     note.marker = createMarker(note.x, note.y, note.z, "corona", 0.55, 230, 210, 145, 120)
     if note.marker and isElement(note.marker) then
         setElementInterior(note.marker, note.interior or 0)
         setElementDimension(note.marker, note.dimension or 0)
         setElementData(note.marker, "hrp:placed_note:id", note.id, false)
+        setElementData(note.marker, "hrp:placed_note:place_type", note.placeType, false)
         if note.vehicle and isElement(note.vehicle) then
             attachElements(note.marker, note.vehicle, note.attachX or DEFAULT_VEHICLE_ATTACH_X, note.attachY or DEFAULT_VEHICLE_ATTACH_Y, note.attachZ or DEFAULT_VEHICLE_ATTACH_Z, 0, 0, 0)
         end
-        if HRP.InventoryNoteVisual and HRP.InventoryNoteVisual.ensure then HRP.InventoryNoteVisual.ensure(note.marker, note) end
+        if HRP.InventoryNoteVisual then
+            if isVehicleNote(note) and HRP.InventoryNoteVisual.destroy then
+                HRP.InventoryNoteVisual.destroy(note.marker)
+            elseif HRP.InventoryNoteVisual.ensure then
+                HRP.InventoryNoteVisual.ensure(note.marker, note)
+            end
+        end
         addEventHandler("onMarkerHit", note.marker, function(hitElement, matchingDimension)
             if matchingDimension and isElement(hitElement) and getElementType(hitElement) == "player" then
                 local x, y, z = notePosition(note)
-                triggerClientEvent(hitElement, "HeavyRPG:Inventory:nearPlacedNote", resourceRoot, true, { id = note.id, x = x, y = y, z = z })
+                triggerClientEvent(hitElement, "HeavyRPG:Inventory:nearPlacedNote", resourceRoot, true, { id = note.id, x = x, y = y, z = z, placeType = note.placeType })
             end
         end)
         addEventHandler("onMarkerLeave", note.marker, function(hitElement, matchingDimension)
