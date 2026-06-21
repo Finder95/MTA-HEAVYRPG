@@ -238,7 +238,16 @@ local function placeNote(player, uid, placeType, x, y, z, target)
 
     local px, py, pz = getElementPosition(player)
     x, y, z = tonumber(x), tonumber(y), tonumber(z)
-    if not x or not y or not z or getDistanceBetweenPoints3D(px, py, pz, x, y, z) > 5.0 then return false, "Jestes za daleko od miejsca przyklejenia." end
+
+    if placeType == "vehicle" then
+        local vx, vy, vz = getElementPosition(target)
+        if getDistanceBetweenPoints3D(px, py, pz, vx, vy, vz) > 7.0 then return false, "Podejdz blizej do pojazdu." end
+        if not x or not y or not z or getDistanceBetweenPoints3D(px, py, pz, x, y, z) > 7.5 then
+            x, y, z = vx, vy, vz + 1.05
+        end
+    elseif not x or not y or not z or getDistanceBetweenPoints3D(px, py, pz, x, y, z) > 5.0 then
+        return false, "Jestes za daleko od miejsca przyklejenia."
+    end
 
     local timestamp = now()
     local noteZ = z + 0.05
