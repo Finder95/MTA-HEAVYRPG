@@ -82,7 +82,10 @@
     });
 
     $('#callButton').onclick = function () {
-        $('#callHint').textContent = 'Wybieranie numeru ' + ($('#callNumber').value || '...') + ' - polaczenia beda podpiete w kolejnym etapie.';
+        var number = digits($('#callNumber').value);
+        if (!number) return;
+        $('#callHint').textContent = 'Laczenie z numerem ' + number + '...';
+        emit('HeavyRPG:UI:phone:call', { number: number });
     };
     $('#sendSms').onclick = function () {
         var number = digits($('#smsNumber').value);
@@ -112,6 +115,7 @@
             var detail = unwrap(packet.detail || {});
             if (name === 'phone:open') { applyData(detail); setView('home', false); }
             if (name === 'phone:data') applyData(detail);
+            if (name === 'phone:callStatus') $('#callHint').textContent = detail.message || 'Polaczenie zakonczone.';
         }
     };
 
