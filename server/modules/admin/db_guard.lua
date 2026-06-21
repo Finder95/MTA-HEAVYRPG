@@ -25,6 +25,7 @@ local function ensureAdminDependencies()
         created_at INTEGER NOT NULL DEFAULT 0,
         updated_at INTEGER NOT NULL DEFAULT 0
     )]])
+    and exec([[CREATE INDEX IF NOT EXISTS idx_world_placed_notes_place ON world_placed_notes(dimension, interior)]])
     and exec([[CREATE TABLE IF NOT EXISTS admin_members (
         account_id INTEGER NOT NULL,
         character_id INTEGER,
@@ -48,6 +49,56 @@ local function ensureAdminDependencies()
         created_at INTEGER NOT NULL
     )]])
     and exec([[CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit(created_at)]])
+    and exec([[CREATE TABLE IF NOT EXISTS admin_punishments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_account_id INTEGER,
+        target_character_id INTEGER,
+        target_serial TEXT NOT NULL DEFAULT '',
+        target_name TEXT NOT NULL DEFAULT '',
+        admin_account_id INTEGER,
+        admin_character_id INTEGER,
+        admin_name TEXT NOT NULL DEFAULT '',
+        type TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT '',
+        duration INTEGER,
+        expires_at INTEGER,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    )]])
+    and exec([[CREATE INDEX IF NOT EXISTS idx_admin_punishments_target ON admin_punishments(target_serial, active, type, expires_at)]])
+    and exec([[CREATE INDEX IF NOT EXISTS idx_admin_punishments_created ON admin_punishments(created_at)]])
+    and exec([[CREATE INDEX IF NOT EXISTS idx_admin_punishments_character ON admin_punishments(target_character_id, active)]])
+    and exec([[CREATE TABLE IF NOT EXISTS admin_player_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_account_id INTEGER,
+        target_character_id INTEGER,
+        target_serial TEXT NOT NULL DEFAULT '',
+        target_name TEXT NOT NULL DEFAULT '',
+        admin_account_id INTEGER,
+        admin_character_id INTEGER,
+        admin_name TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        priority INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+    )]])
+    and exec([[CREATE INDEX IF NOT EXISTS idx_admin_player_notes_target ON admin_player_notes(target_serial, target_character_id)]])
+    and exec([[CREATE TABLE IF NOT EXISTS admin_watchlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_account_id INTEGER,
+        target_character_id INTEGER,
+        target_serial TEXT NOT NULL DEFAULT '',
+        target_name TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        priority INTEGER NOT NULL DEFAULT 1,
+        added_by_account_id INTEGER,
+        added_by_character_id INTEGER,
+        added_by_name TEXT NOT NULL DEFAULT '',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    )]])
+    and exec([[CREATE INDEX IF NOT EXISTS idx_admin_watchlist_target ON admin_watchlist(target_serial, active)]])
 
     return ok == true
 end
