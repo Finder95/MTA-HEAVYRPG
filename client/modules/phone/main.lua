@@ -153,7 +153,7 @@ local function takeSelfie()
     if not jpeg then selfieStatus(false, "Aparat nie mogl zapisac JPEG.") return end
 
     local timestamp = getRealTime().timestamp or getTickCount()
-    local path = "phone_selfie_" .. tostring(timestamp) .. ".jpg"
+    local path = "phone_selfie_" .. tostring(timestamp) .. "_" .. tostring(getTickCount()) .. ".jpg"
     local file = fileCreate(path)
     if not file then selfieStatus(false, "Nie udalo sie utworzyc pliku selfie.") return end
     fileWrite(file, jpeg)
