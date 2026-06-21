@@ -16,6 +16,7 @@ local renderAttached = false
 local placementDepths = { 3.0, 5.0, 8.0, 12.0 }
 
 local function color(r, g, b, a) return tocolor(r, g, b, a or 255) end
+local function clamp(value, minValue, maxValue) value = tonumber(value) or minValue if value < minValue then return minValue end if value > maxValue then return maxValue end return value end
 
 local function noteActionOpen()
     local action = Inv.action
@@ -42,14 +43,71 @@ local function rayTarget(px, py, distance)
     return cx + dx / length * distance, cy + dy / length * distance, cz + dz / length * distance
 end
 
+local function matrixPoint(matrix, lx, ly, lz)
+    return lx * matrix[1][1] + ly * matrix[2][1] + lz * matrix[3][1] + matrix[4][1],
+        lx * matrix[1][2] + ly * matrix[2][2] + lz * matrix[3][2] + matrix[4][2],
+        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
+end
+
+local function vehicleScreenFallback(cursorX, cursorY, screenX, screenY)
+    if not placing or placing.mode ~= "vehicle" then return false end
+
+    local px, py, pz = getElementPosition(localPlayer)
+    local threshold = clamp(math.min(screenX, screenY) * 0.045, 42, 82)
+    local best = nil
+
+    for _, vehicle in ipairs(getElementsWithinRange(px, py, pz, 6.5, "vehicle")) do
+        if isElementStreamedIn(vehicle) then
+            local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
+            local matrix = getElementMatrix(vehicle)
+            if minX and matrix then
+                local z = minZ + (maxZ - minZ) * 0.68
+                local candidates = {
+                    { 0, maxY * 0.58, z },
+                    { minX * 0.32, maxY * 0.58, z },
+                    { maxX * 0.32, maxY * 0.58, z },
+                    { 0, minY * 0.58, z },
+                    { minX * 0.32, minY * 0.58, z },
+                    { maxX * 0.32, minY * 0.58, z }
+                }
+
+                for _, candidate in ipairs(candidates) do
+                    local wx, wy, wz = matrixPoint(matrix, candidate[1], candidate[2], candidate[3])
+                    local distance = getDistanceBetweenPoints3D(px, py, pz, wx, wy, wz)
+                    if distance <= 5.3 then
+                        local sx, sy = getScreenFromWorldPosition(wx, wy, wz, 0.1, true)
+                        if sx and sy then
+                            local screenDistance = math.sqrt((sx - cursorX) * (sx - cursorX) + (sy - cursorY) * (sy - cursorY))
+                            local score = screenDistance + distance * 2.5
+                            if screenDistance <= threshold and (not best or score < best.score) then
+                                best = { score = score, x = wx, y = wy, z = wz, vehicle = vehicle }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if best then return true, best.x, best.y, best.z, best.vehicle, 0, 0, 1 end
+    return false
+end
+
 local function cursorHit()
-    local px, py = screenPoint()
+    local px, py, sx, sy = screenPoint()
     local camX, camY, camZ = getCameraMatrix()
 
     for _, distance in ipairs(placementDepths) do
         local tx, ty, tz = rayTarget(px, py, distance)
         local hit, x, y, z, element, nx, ny, nz = rawProcessLineOfSight(camX, camY, camZ, tx, ty, tz, true, true, true, true, true, false, false, false, localPlayer)
-        if hit then return true, x, y, z, element, nx, ny, nz end
+        if hit then
+            if not placing or placing.mode ~= "vehicle" then return true, x, y, z, element, nx, ny, nz end
+            if isElement(element) and getElementType(element) == "vehicle" then return true, x, y, z, element, nx, ny, nz end
+        end
+    end
+
+    if placing and placing.mode == "vehicle" then
+        return vehicleScreenFallback(px, py, sx, sy)
     end
 
     return false
@@ -91,7 +149,7 @@ function Inv.drawNotePlacement()
     local mx, my, sx, sy = screenPoint()
     local accent = ok and color(176, 222, 150, 245) or color(230, 90, 80, 245)
     local shadow = color(0, 0, 0, 170)
-    local label = ok and "LPM - przyklej kartke tutaj" or (placing.mode == "vehicle" and "Wskaz pojazd" or "Wskaz miejsce pod kursorem")
+    local label = ok and "LPM - przyklej kartke tutaj" or (placing.mode == "vehicle" and "Wskaz szybe lub maske pojazdu" or "Wskaz miejsce pod kursorem")
 
     dxDrawLine(mx - 18, my, mx - 6, my, shadow, 4, true)
     dxDrawLine(mx + 6, my, mx + 18, my, shadow, 4, true)
@@ -101,8 +159,8 @@ function Inv.drawNotePlacement()
     dxDrawLine(mx + 6, my, mx + 18, my, accent, 2, true)
     dxDrawLine(mx, my - 18, mx, my - 6, accent, 2, true)
     dxDrawLine(mx, my + 6, mx, my + 18, accent, 2, true)
-    dxDrawText(label, mx - 220, my + 26, mx + 220, my + 54, shadow, 0.82, "default-bold", "center", "center", false, false, true)
-    dxDrawText(label, mx - 220, my + 25, mx + 220, my + 53, accent, 0.82, "default-bold", "center", "center", false, false, true)
+    dxDrawText(label, mx - 240, my + 26, mx + 240, my + 54, shadow, 0.82, "default-bold", "center", "center", false, false, true)
+    dxDrawText(label, mx - 240, my + 25, mx + 240, my + 53, accent, 0.82, "default-bold", "center", "center", false, false, true)
     dxDrawText("PPM / ESC - anuluj", 0, sy - 92, sx, sy - 62, color(232, 229, 219, 230), 0.78, "default-bold", "center", "center", false, false, true)
 
     if ok and x and y and z then
@@ -122,7 +180,7 @@ function Inv.handleNotePlacementClick(button, state)
 
     local hit, x, y, z, element = cursorHit()
     if not placementValid(hit, element) then
-        outputChatBox(placing.mode == "vehicle" and "[EQ] Wskaz pojazd pod kursorem." or "[EQ] Wskaz miejsce pod kursorem.", 230, 90, 80)
+        outputChatBox(placing.mode == "vehicle" and "[EQ] Wskaz szybe lub maske pojazdu pod kursorem." or "[EQ] Wskaz miejsce pod kursorem.", 230, 90, 80)
         cancelEvent()
         return
     end
