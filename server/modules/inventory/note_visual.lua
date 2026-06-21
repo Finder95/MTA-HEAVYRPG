@@ -20,11 +20,6 @@ local NOTE_MODEL = 2059
 local NOTE_MARKER_SIZE = 4.0
 local NOTE_SCALE = 0.62
 local NOTE_WORLD_Z_OFFSET = 0.10
-local NOTE_VEHICLE_Z_OFFSET = 0.08
-local NOTE_VEHICLE_RX = 68
-local NOTE_VEHICLE_ATTACH_X = 0
-local NOTE_VEHICLE_ATTACH_Y = 1.25
-local NOTE_VEHICLE_ATTACH_Z = 0.55
 local noteObjects = {}
 
 local function isPlacedNoteMarker(markerType, size, r, g, b)
@@ -39,10 +34,8 @@ local function isVehicle(element)
     return isElement(element) and getElementType(element) == "vehicle"
 end
 
-local function numberOr(value, fallback)
-    value = tonumber(value)
-    if value == nil then return fallback end
-    return value
+local function isVehicleNote(note)
+    return type(note) == "table" and (tostring(note.placeType or "") == "vehicle_windshield" or isVehicle(note.vehicle))
 end
 
 local function objectFor(element)
@@ -59,23 +52,24 @@ local function syncObjectBase(marker, object)
     if rawSetObjectScale then rawSetObjectScale(object, NOTE_SCALE) end
 end
 
-local function attachObjectToVehicle(object, vehicle, x, y, z, rz, ...)
-    if not object or not isElement(object) or not isVehicle(vehicle) then return false end
-    local ox = numberOr(x, NOTE_VEHICLE_ATTACH_X)
-    local oy = numberOr(y, NOTE_VEHICLE_ATTACH_Y)
-    local oz = numberOr(z, NOTE_VEHICLE_ATTACH_Z) + NOTE_VEHICLE_Z_OFFSET
-    rawAttachElements(object, vehicle, ox, oy, oz, NOTE_VEHICLE_RX, 0, numberOr(rz, 0), ...)
-    return true
-end
-
 local function moveObjectToMarker(marker, object)
     if not marker or not isElement(marker) or not object or not isElement(object) then return end
     local x, y, z = getElementPosition(marker)
     setElementPosition(object, x, y, z + NOTE_WORLD_Z_OFFSET)
 end
 
+function Visual.destroy(marker)
+    local object = objectFor(marker)
+    if object and isElement(object) then rawDestroyElement(object) end
+    noteObjects[marker] = nil
+end
+
 function Visual.ensure(marker, note)
     if not marker or not isElement(marker) then return nil end
+    if isVehicleNote(note) then
+        Visual.destroy(marker)
+        return nil
+    end
 
     local object = objectFor(marker)
     if not object or not isElement(object) then
@@ -86,20 +80,8 @@ function Visual.ensure(marker, note)
     end
 
     syncObjectBase(marker, object)
-
-    if note and isVehicle(note.vehicle) then
-        attachObjectToVehicle(object, note.vehicle, note.attachX, note.attachY, note.attachZ, 0)
-    else
-        moveObjectToMarker(marker, object)
-    end
-
+    moveObjectToMarker(marker, object)
     return object
-end
-
-function Visual.destroy(marker)
-    local object = objectFor(marker)
-    if object and isElement(object) then rawDestroyElement(object) end
-    noteObjects[marker] = nil
 end
 
 function createMarker(x, y, z, markerType, size, r, g, b, a, ...)
@@ -136,7 +118,7 @@ function attachElements(element, attachTo, x, y, z, rx, ry, rz, ...)
     local object = objectFor(element)
     if object and isElement(object) then
         if isVehicle(attachTo) then
-            attachObjectToVehicle(object, attachTo, x, y, z, rz, ...)
+            Visual.destroy(element)
         else
             rawAttachElements(object, attachTo, x or 0, y or 0, (z or 0) + NOTE_WORLD_Z_OFFSET, rx or 0, ry or 0, rz or 0, ...)
         end
