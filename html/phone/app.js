@@ -1,5 +1,13 @@
 (function () {
-    var state = { view: 'home', history: ['home'], number: '555000000', contacts: [], messages: [], time: null, theme: 'forest' };
+    var state = {
+        view: 'home',
+        history: ['home'],
+        number: '555000000',
+        contacts: [],
+        messages: [],
+        time: null,
+        settings: { theme: 'forest', volume: 75, ringtone: 'classic', airplane: false, animations: true }
+    };
     var themes = [
         { id: 'night', label: 'Noc' },
         { id: 'forest', label: 'Las' },
@@ -19,6 +27,17 @@
         });
     }
 
+    function loadSettings() {
+        try {
+            var saved = JSON.parse(localStorage.getItem('hrp-phone-settings') || '{}');
+            Object.keys(saved).forEach(function (key) { if (state.settings.hasOwnProperty(key)) state.settings[key] = saved[key]; });
+        } catch (e) {}
+    }
+
+    function saveSettings() {
+        try { localStorage.setItem('hrp-phone-settings', JSON.stringify(state.settings)); } catch (e) {}
+    }
+
     function setView(view, push) {
         view = view || 'home';
         state.view = view;
@@ -31,12 +50,27 @@
         setView(state.history[state.history.length - 1] || 'home', false);
     }
 
-    function setTheme(theme) {
-        state.theme = theme || 'forest';
-        try { localStorage.setItem('hrp-phone-theme', state.theme); } catch (e) {}
+    function applySettings() {
         var screen = $('#screen');
-        if (screen) screen.className = 'screen theme-' + state.theme;
-        $$('.theme-dot').forEach(function (button) { button.classList.toggle('active', button.dataset.theme === state.theme); });
+        if (screen) {
+            screen.className = 'screen theme-' + state.settings.theme + (state.settings.animations ? '' : ' no-motion');
+        }
+        $('#statusIcons').textContent = state.settings.airplane ? 'AIR' : 'LTE ' + String(state.settings.volume || 0) + '%';
+        $$('.theme-dot').forEach(function (button) { button.classList.toggle('active', button.dataset.theme === state.settings.theme); });
+        var volume = $('#volumeRange');
+        var ringtone = $('#ringtoneSelect');
+        var airplane = $('#airplaneToggle');
+        var animations = $('#animationsToggle');
+        if (volume) volume.value = state.settings.volume;
+        if (ringtone) ringtone.value = state.settings.ringtone;
+        if (airplane) airplane.checked = state.settings.airplane === true;
+        if (animations) animations.checked = state.settings.animations !== false;
+    }
+
+    function setTheme(theme) {
+        state.settings.theme = theme || 'forest';
+        saveSettings();
+        applySettings();
     }
 
     function renderThemes() {
@@ -51,7 +85,14 @@
             button.onclick = function () { setTheme(theme.id); };
             row.appendChild(button);
         });
-        setTheme(state.theme);
+        applySettings();
+    }
+
+    function bindSettings() {
+        $('#volumeRange').oninput = function () { state.settings.volume = Number(this.value) || 0; saveSettings(); applySettings(); };
+        $('#ringtoneSelect').onchange = function () { state.settings.ringtone = this.value || 'classic'; saveSettings(); applySettings(); };
+        $('#airplaneToggle').onchange = function () { state.settings.airplane = this.checked === true; saveSettings(); applySettings(); };
+        $('#animationsToggle').onchange = function () { state.settings.animations = this.checked === true; saveSettings(); applySettings(); };
     }
 
     function renderChrome() {
@@ -60,6 +101,7 @@
         var minute = typeof time.minute === 'number' ? time.minute : 0;
         $('#clock').textContent = pad(hour) + ':' + pad(minute);
         $('#timezone').textContent = time.timezone || 'CEST';
+        applySettings();
     }
 
     function renderMessages() {
@@ -122,6 +164,7 @@
     $('#callButton').onclick = function () {
         var number = digits($('#callNumber').value);
         if (!number) return;
+        if (state.settings.airplane) { $('#callHint').textContent = 'Tryb samolotowy jest wlaczony.'; return; }
         $('#callHint').textContent = 'Laczenie z numerem ' + number + '...';
         emit('HeavyRPG:UI:phone:call', { number: number });
     };
@@ -129,6 +172,7 @@
         var number = digits($('#smsNumber').value);
         var body = $('#smsBody').value || '';
         if (!number || !body.trim()) return;
+        if (state.settings.airplane) { $('#smsBody').value = 'Tryb samolotowy jest wlaczony.'; return; }
         emit('HeavyRPG:UI:phone:sendSms', { number: number, body: body });
         $('#smsBody').value = '';
     };
@@ -139,6 +183,10 @@
         emit('HeavyRPG:UI:phone:addContact', { name: name, number: number });
         $('#contactName').value = '';
         $('#contactNumber').value = '';
+    };
+    $('#selfieButton').onclick = function () {
+        $('#selfieStatus').textContent = 'Robie selfie...';
+        emit('HeavyRPG:UI:phone:selfie', {});
     };
     $('#backButton').onclick = goBack;
     $('#homeButton').onclick = function () { setView('home'); };
@@ -154,12 +202,14 @@
             if (name === 'phone:open') { applyData(detail); setView('home', false); }
             if (name === 'phone:data') applyData(detail);
             if (name === 'phone:callStatus') $('#callHint').textContent = detail.message || 'Polaczenie zakonczone.';
+            if (name === 'phone:selfieStatus') $('#selfieStatus').textContent = detail.message || 'Selfie zapisane.';
             if (name === 'phone:back') goBack();
         }
     };
 
-    try { state.theme = localStorage.getItem('hrp-phone-theme') || state.theme; } catch (e) {}
+    loadSettings();
     renderThemes();
+    bindSettings();
     renderChrome();
     renderMessages();
     renderContacts();
