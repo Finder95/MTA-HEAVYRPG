@@ -20,12 +20,13 @@ Inv.action = nil
 Inv.prompt = nil
 Inv.editing = false
 Inv.editText = ""
+Inv.nearPlacedNote = nil
 
 local clickAttached = false
 local overlayAttached = false
 local characterAttached = false
 local fallbackCategories = { all = "Wszystko", money = "Gotowka", documents = "Dokumenty", consumable = "Jedzenie", medical = "Medyczne", utility = "Uzytkowe", illegal = "Nielegalne", misc = "Inne" }
-local utilityItems = { cash = true, id_card = true, phone = true, notebook = true, lockpick = true }
+local utilityItems = { cash = true, id_card = true, phone = true, notebook = true, note_page = true, lockpick = true }
 local colors = {
     bg = { 18, 20, 22, 238 }, panel = { 25, 28, 30, 226 }, row = { 33, 37, 40, 144 }, alt = { 29, 32, 35, 132 },
     active = { 79, 92, 93, 230 }, line = { 86, 99, 99, 185 }, text = { 232, 229, 219, 255 }, muted = { 154, 158, 154, 255 },
@@ -117,6 +118,54 @@ local function refreshNotebookPanel()
     if not Inv.editing then Inv.editText = action.text end
 end
 
+local function notePageData(item)
+    local metadata = type(item and item.metadata) == "table" and item.metadata or {}
+    local page = type(metadata.notePage) == "table" and metadata.notePage or metadata
+    return {
+        title = tostring(page.title or "Wyrwana strona"),
+        body = tostring(page.body or page.text or ""),
+        source = tostring(page.source or "Nieznane pochodzenie")
+    }
+end
+
+local function makeNoteReader(title, body, actions)
+    return {
+        title = title or "Kartka",
+        lines = { tostring(body or "Pusta kartka.") },
+        actions = actions or { { id = "noop", label = "Zamknij" } },
+        selected = 1
+    }
+end
+
+local function requestNotePlacement(mode)
+    local action = Inv.action
+    if not action or not action.item then return end
+
+    local cx, cy, cz, lx, ly, lz = getCameraMatrix()
+    local hit, x, y, z, element, nx, ny, nz = processLineOfSight(cx, cy, cz, lx, ly, lz, true, true, true, true, true, false, false, false, localPlayer)
+    if not hit then
+        outputChatBox("[EQ] Musisz patrzec na miejsce, do ktorego da sie przyczepic kartke.", 230, 90, 80)
+        return
+    end
+
+    local elementType = isElement(element) and getElementType(element) or "world"
+    if mode == "vehicle" and elementType ~= "vehicle" then
+        outputChatBox("[EQ] Spojrz na samochod, najlepiej okolice przedniej szyby.", 230, 90, 80)
+        return
+    end
+    if mode == "world" and elementType == "vehicle" then
+        outputChatBox("[EQ] Do auta uzyj akcji: zostaw za wycieraczka.", 230, 90, 80)
+        return
+    end
+    if mode == "world" and nz and tonumber(nz) and tonumber(nz) > 0.62 then
+        outputChatBox("[EQ] Kartki nie kleimy na ziemi. Wybierz sciane, slup, drzwi albo podobna pionowa powierzchnie.", 230, 90, 80)
+        return
+    end
+
+    triggerServerEvent("HeavyRPG:Inventory:placeNote", resourceRoot, action.item.uid, mode, x, y, z, element)
+    closeAction()
+end
+
 local function makeAction(item)
     if not item then return nil end
     local actions, lines = {}, {}
@@ -135,6 +184,7 @@ local function makeAction(item)
             { id = "notebook_next", label = "Nastepna strona" },
             { id = "notebook_new_page", label = "Dodaj strone" },
             { id = "notebook_toggle_pin", label = "Przypnij / odepnij" },
+            { id = "notebook_tear_page", label = "Wyrwij strone" },
             { id = "notebook_delete_page", label = "Usun strone" },
             { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 },
             { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 }
@@ -143,6 +193,22 @@ local function makeAction(item)
         Inv.action = action
         refreshNotebookPanel()
         return action
+    end
+    if item.itemId == "note_page" then
+        local page = notePageData(item)
+        return {
+            title = "Kartka: " .. page.title,
+            item = item,
+            lines = { page.body ~= "" and page.body or "Pusta kartka.", "Pochodzenie: " .. page.source },
+            actions = {
+                { id = "note_page_read", label = "Przeczytaj" },
+                { id = "note_page_place_world", label = "Przyklej na scianie/slupie" },
+                { id = "note_page_place_vehicle", label = "Zostaw za wycieraczka" },
+                { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 },
+                { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 },
+                { id = "item_destroy", label = "Zniszcz" }
+            }
+        }
     end
     if item.itemId == "phone" then
         return { title = "Telefon", item = item, lines = { "Uzyj telefonu, aby otworzyc osobny smartfon CEF." }, actions = { { id = "phone_open", label = "Uzyj" }, { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 }, { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 } } }
@@ -246,6 +312,22 @@ local function runAction(btn)
         refreshNotebookPanel()
         return
     end
+    if btn.id == "notebook_tear_page" then
+        local book = Inv.action.notebook
+        local _, page, pageNo = notebookCurrent(Inv.action)
+        triggerServerEvent("HeavyRPG:Inventory:notebookTearPage", resourceRoot, Inv.action.item.uid, pageNo)
+        if #(book.pages or {}) <= 1 then
+            book.pages[1] = { title = "Strona 1", body = "", pinned = false }
+            Inv.action.page = 1
+        else
+            table.remove(book.pages, pageNo)
+            Inv.action.page = clamp(pageNo, 1, #book.pages)
+        end
+        Inv.editing = false
+        refreshNotebookPanel()
+        outputChatBox("[EQ] Wyrwano strone: " .. tostring(page.title or pageNo) .. ".", 210, 198, 164)
+        return
+    end
     if btn.id == "notebook_toggle_pin" then
         local _, page, pageNo = notebookCurrent(Inv.action)
         page.pinned = not page.pinned
@@ -253,6 +335,16 @@ local function runAction(btn)
         refreshNotebookPanel()
         return
     end
+    if btn.id == "note_page_read" then
+        local page = notePageData(Inv.action.item)
+        Inv.action = makeNoteReader("Kartka: " .. page.title, page.body, { { id = "noop", label = "Zamknij" } })
+        return
+    end
+    if btn.id == "note_page_place_world" then requestNotePlacement("world") return end
+    if btn.id == "note_page_place_vehicle" then requestNotePlacement("vehicle") return end
+    if btn.id == "item_destroy" then triggerServerEvent("HeavyRPG:Inventory:destroyNotePage", resourceRoot, Inv.action.item.uid) closeAction() return end
+    if btn.id == "placed_note_take" then triggerServerEvent("HeavyRPG:Inventory:placedNoteAction", resourceRoot, "take", Inv.action.noteId) closeAction() setVisible(false) return end
+    if btn.id == "placed_note_destroy" then triggerServerEvent("HeavyRPG:Inventory:placedNoteAction", resourceRoot, "destroy", Inv.action.noteId) closeAction() setVisible(false) return end
     if btn.id == "server_use" then triggerServerEvent("HeavyRPG:Inventory:use", resourceRoot, Inv.action.item.uid, Inv.action.item.itemId) return end
     triggerServerEvent("HeavyRPG:Inventory:menuAction", resourceRoot, btn.id, toJSON({ uid = Inv.action.item.uid, itemId = Inv.action.item.itemId, amount = btn.amount or 1 }, true))
 end
@@ -336,6 +428,22 @@ local function drawInventory()
 end
 
 local function drawDropPrompt()
+    local placed = Inv.nearPlacedNote
+    if placed and not Inv.visible then
+        local s, sx, sy = scale()
+        local prompt = "E - w tym miejscu wisi notatka. Nacisnij E, aby sie z nia zapoznac."
+        local w, h = math.max(520*s, dxGetTextWidth(prompt, 0.78*s, "default-bold") + 42*s), 40*s
+        if placed.x and placed.y and placed.z then
+            local lx, ly = getScreenFromWorldPosition(placed.x, placed.y, placed.z + 0.55)
+            if lx and ly then
+                text("W tym miejscu wisi notatka", lx-180*s, ly-18*s, lx+180*s, ly+18*s, rgba("accent",245), 0.76*s, "default-bold", "center", "center")
+                text("Nacisnij E, aby sie z nia zapoznac", lx-220*s, ly+4*s, lx+220*s, ly+34*s, rgba("text",235), 0.66*s, "default-bold", "center", "center")
+            end
+        end
+        box((sx-w)/2, sy-176*s, w, h, rgba("panel",224), rgba("accent",190))
+        text(prompt, (sx-w)/2, sy-166*s, (sx+w)/2, sy-136*s, rgba("text",245), 0.78*s, "default-bold", "center")
+        return
+    end
     local drop = Inv.nearDrop
     if not drop or Inv.visible then return end
     local s, sx, sy = scale()
@@ -411,6 +519,7 @@ local function handleKey(button, press)
         cancelEvent()
         return
     end
+    if button == "e" and Inv.nearPlacedNote and not Inv.visible then triggerServerEvent("HeavyRPG:Inventory:readPlacedNote", resourceRoot, Inv.nearPlacedNote.id) cancelEvent() return end
     if button == "e" and Inv.nearDrop and not Inv.visible then if Inv.nearDrop.cash == true or Inv.nearDrop.itemId == "cash" then triggerServerEvent("HeavyRPG:Inventory:pickupCashDrop", resourceRoot, Inv.nearDrop.id) else triggerServerEvent("HeavyRPG:Inventory:pickupDrop", resourceRoot, Inv.nearDrop.id) end cancelEvent() return end
     if button == tostring(cfg().key or "i") then if not canToggle() then return end setVisible(not Inv.visible) cancelEvent() return end
     if not Inv.visible then return end
@@ -429,6 +538,20 @@ addEvent("HeavyRPG:Inventory:close", true)
 addEventHandler("HeavyRPG:Inventory:close", resourceRoot, function() setVisible(false) end)
 addEvent("HeavyRPG:Inventory:nearDrop", true)
 addEventHandler("HeavyRPG:Inventory:nearDrop", resourceRoot, function(state, payload) if state then Inv.nearDrop = type(payload) == "table" and payload or nil else Inv.nearDrop = nil end end)
+addEvent("HeavyRPG:Inventory:nearPlacedNote", true)
+addEventHandler("HeavyRPG:Inventory:nearPlacedNote", resourceRoot, function(state, payload) if state then Inv.nearPlacedNote = type(payload) == "table" and payload or nil else Inv.nearPlacedNote = nil end end)
+addEvent("HeavyRPG:Inventory:placedNotePanel", true)
+addEventHandler("HeavyRPG:Inventory:placedNotePanel", resourceRoot, function(payload)
+    if type(payload) ~= "table" then return end
+    Inv.blocked = false
+    setVisible(true)
+    Inv.action = makeNoteReader("Notatka wisi w tym miejscu", tostring(payload.body or "Pusta kartka."), {
+        { id = "placed_note_take", label = "Zabierz kartke" },
+        { id = "placed_note_destroy", label = "Zerwij i zniszcz" },
+        { id = "noop", label = "Zamknij" }
+    })
+    Inv.action.noteId = payload.id
+end)
 addEvent("HeavyRPG:Inventory:action", true)
 addEventHandler("HeavyRPG:Inventory:action", resourceRoot, function(payload) if type(payload) ~= "table" then return end Inv.action = { title = payload.title or "Akcja", lines = payload.lines or {}, actions = { { id = "noop", label = payload.footer or "Zamknij" } }, selected = 1 } end)
 addEventHandler("HeavyRPG:Auth:show", resourceRoot, blockInventory)
