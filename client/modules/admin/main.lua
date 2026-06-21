@@ -41,6 +41,11 @@ end
 
 local function inside(x, y) return x >= Panel.x and x <= Panel.x + Panel.w and y >= Panel.y and y <= Panel.y + Panel.h end
 local function browserPoint(x, y) return x - Panel.x, y - Panel.y end
+local function closeButtonBounds() return Panel.x + Panel.w - 42, Panel.y + 10, 32, 32 end
+local function insideCloseButton(x, y)
+    local bx, by, bw, bh = closeButtonBounds()
+    return x >= bx and x <= bx + bw and y >= by and y <= by + bh
+end
 
 local function call(fn, payload)
     if not Panel.browser or not Panel.ready then return false end
@@ -55,11 +60,18 @@ local function render()
     if not Panel.visible or not Panel.browser then return end
     dxDrawRectangle(0, 0, Panel.sx, Panel.sy, tocolor(5, 7, 8, 150), true)
     dxDrawImage(Panel.x, Panel.y, Panel.w, Panel.h, Panel.browser, 0, 0, 0, tocolor(255, 255, 255, 255), true)
+
+    local bx, by, bw, bh = closeButtonBounds()
+    local hover = isCursorShowing() and insideCloseButton(Panel.lastX or 0, Panel.lastY or 0)
+    dxDrawRectangle(bx, by, bw, bh, hover and tocolor(95, 35, 30, 245) or tocolor(32, 34, 31, 245), true)
+    dxDrawRectangle(bx, by, bw, 2, tocolor(199, 163, 90, 230), true)
+    dxDrawText("X", bx, by, bx + bw, by + bh, tocolor(245, 238, 224, 255), 1.0, "default-bold", "center", "center", false, false, true)
 end
 
 local function cursorMove(_, _, x, y)
     if not Panel.visible or not Panel.browser then return end
     Panel.lastX, Panel.lastY = x, y
+    if insideCloseButton(x, y) then return end
     if not inside(x, y) then return end
     local bx, by = browserPoint(x, y)
     injectBrowserMouseMove(Panel.browser, bx, by)
@@ -68,6 +80,11 @@ end
 local function cursorClick(button, state, x, y)
     if not Panel.visible or not Panel.browser then return end
     if button ~= "left" and button ~= "right" and button ~= "middle" then return end
+    if button == "left" and state == "down" and insideCloseButton(x, y) then
+        setVisible(false)
+        cancelEvent()
+        return
+    end
     if not inside(x, y) then return end
     local bx, by = browserPoint(x, y)
     injectBrowserMouseMove(Panel.browser, bx, by)
@@ -77,11 +94,12 @@ end
 
 local function wheel(key)
     if not Panel.visible or not Panel.browser then return end
+    if insideCloseButton(Panel.lastX or 0, Panel.lastY or 0) then return end
     if not inside(Panel.lastX, Panel.lastY) then return end
     injectBrowserMouseWheel(Panel.browser, key == "mouse_wheel_up" and 1 or -1, 0)
 end
 
-local function setVisible(state)
+function setVisible(state)
     state = state == true
     if Panel.visible == state then return end
     Panel.visible = state
