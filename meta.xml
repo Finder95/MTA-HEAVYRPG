@@ -36,6 +36,7 @@
     <script src="client/modules/character/main.lua" type="client" />
     <script src="client/modules/hud/main.lua" type="client" />
     <script src="client/modules/inventory/main.lua" type="client" />
+    <script src="client/modules/phone/main.lua" type="client" />
     <script src="client/core/boot.lua" type="client" />
 
     <!-- CEF files -->
@@ -45,6 +46,9 @@
     <file src="html/character/index.html" />
     <file src="html/character/style.css" />
     <file src="html/character/app.js" />
+    <file src="html/phone/index.html" />
+    <file src="html/phone/style.css" />
+    <file src="html/phone/app.js" />
 
     <!-- HUD sprites -->
     <file src="assets/hud/health.png" />
