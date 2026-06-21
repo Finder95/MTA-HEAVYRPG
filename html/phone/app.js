@@ -6,6 +6,7 @@
         contacts: [],
         messages: [],
         time: null,
+        camera: { mode: 'photo', zoom: 1 },
         settings: { theme: 'forest', volume: 75, ringtone: 'classic', airplane: false, animations: true }
     };
     var themes = [
@@ -21,6 +22,7 @@
     function emit(name, payload) { if (window.mta && typeof window.mta.triggerEvent === 'function') window.mta.triggerEvent(name, JSON.stringify(payload || {})); else console.log('[phone]', name, payload); }
     function digits(value) { return String(value || '').replace(/\D/g, '').slice(0, 12); }
     function pad(value) { value = String(value || 0); return value.length < 2 ? '0' + value : value; }
+    function cameraPayload() { return { mode: state.camera.mode, zoom: state.camera.zoom }; }
     function closePhone() { emit('HeavyRPG:UI:phone:cameraStop', {}); emit('HeavyRPG:UI:phone:close', {}); }
     function escapeHtml(value) {
         return String(value || '').replace(/[&<>"']/g, function (ch) {
@@ -39,12 +41,24 @@
         try { localStorage.setItem('hrp-phone-settings', JSON.stringify(state.settings)); } catch (e) {}
     }
 
+    function updateCameraUi() {
+        $$('.mode').forEach(function (button) { button.classList.toggle('active', button.dataset.cameraMode === state.camera.mode); });
+        $('#cameraLabel').textContent = state.camera.mode === 'selfie' ? 'SELFIE' : 'PHOTO';
+        $('#zoomValue').textContent = Number(state.camera.zoom || 1).toFixed(2) + 'x';
+        $('#cameraZoom').value = state.camera.zoom;
+    }
+
+    function syncCamera() {
+        updateCameraUi();
+        if (state.view === 'camera') emit('HeavyRPG:UI:phone:cameraStart', cameraPayload());
+    }
+
     function setView(view, push) {
         view = view || 'home';
         var previous = state.view;
         state.view = view;
         $$('.view').forEach(function (el) { el.classList.toggle('active', el.dataset.view === view); });
-        if (previous !== 'camera' && view === 'camera') emit('HeavyRPG:UI:phone:cameraStart', {});
+        if (previous !== 'camera' && view === 'camera') emit('HeavyRPG:UI:phone:cameraStart', cameraPayload());
         if (previous === 'camera' && view !== 'camera') emit('HeavyRPG:UI:phone:cameraStop', {});
         if (push !== false && state.history[state.history.length - 1] !== view) state.history.push(view);
     }
@@ -99,6 +113,14 @@
         $('#ringtoneSelect').onchange = function () { state.settings.ringtone = this.value || 'classic'; saveSettings(); applySettings(); };
         $('#airplaneToggle').onchange = function () { state.settings.airplane = this.checked === true; saveSettings(); applySettings(); };
         $('#animationsToggle').onchange = function () { state.settings.animations = this.checked === true; saveSettings(); applySettings(); };
+    }
+
+    function bindCameraControls() {
+        $$('.mode').forEach(function (button) {
+            button.onclick = function () { state.camera.mode = button.dataset.cameraMode || 'photo'; syncCamera(); };
+        });
+        $('#cameraZoom').oninput = function () { state.camera.zoom = Number(this.value) || 1; syncCamera(); };
+        updateCameraUi();
     }
 
     function renderChrome() {
@@ -192,7 +214,7 @@
     };
     $('#selfieButton').onclick = function () {
         $('#selfieStatus').textContent = 'Ustawiam kadr i chowam UI telefonu...';
-        emit('HeavyRPG:UI:phone:selfie', {});
+        emit('HeavyRPG:UI:phone:selfie', cameraPayload());
     };
     $('#backButton').onclick = goBack;
     $('#homeButton').onclick = function () { setView('home'); };
@@ -209,7 +231,7 @@
             if (name === 'phone:open') { applyData(detail); setView('home', false); }
             if (name === 'phone:data') applyData(detail);
             if (name === 'phone:callStatus') $('#callHint').textContent = detail.message || 'Polaczenie zakonczone.';
-            if (name === 'phone:selfieStatus') $('#selfieStatus').textContent = detail.message || 'Selfie zapisane.';
+            if (name === 'phone:selfieStatus') $('#selfieStatus').textContent = detail.message || 'Zdjecie zapisane.';
             if (name === 'phone:back') goBack();
         }
     };
@@ -217,6 +239,7 @@
     loadSettings();
     renderThemes();
     bindSettings();
+    bindCameraControls();
     renderChrome();
     renderMessages();
     renderContacts();
