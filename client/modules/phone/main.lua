@@ -27,13 +27,14 @@ end
 local function updateBounds()
     Phone.sx, Phone.sy = guiGetScreenSize()
     local scale = math.min(Phone.sx / 1920, Phone.sy / 1080)
-    if scale < 0.78 then scale = 0.78 end
-    if scale > 1.0 then scale = 1.0 end
+    if scale < 0.70 then scale = 0.70 end
+    if scale > 0.92 then scale = 0.92 end
     Phone.w = math.floor(390 * scale)
     Phone.h = math.floor(780 * scale)
-    Phone.x = math.floor(Phone.sx - Phone.w - 56 * scale)
-    Phone.y = math.floor((Phone.sy - Phone.h) / 2)
-    if Phone.x < 24 then Phone.x = math.floor((Phone.sx - Phone.w) / 2) end
+    local margin = math.floor(34 * scale)
+    Phone.x = math.floor(Phone.sx - Phone.w - margin)
+    Phone.y = math.floor(Phone.sy - Phone.h - margin)
+    if Phone.x < 18 then Phone.x = math.floor((Phone.sx - Phone.w) / 2) end
     if Phone.y < 18 then Phone.y = 18 end
 end
 
