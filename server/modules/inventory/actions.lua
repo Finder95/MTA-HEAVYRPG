@@ -2,6 +2,8 @@ HeavyRPG = HeavyRPG or {}
 local HRP = HeavyRPG
 
 local cashDrops = {}
+local NOTEBOOK_MAX_PAGES = 12
+local NOTEBOOK_MAX_BODY = 1200
 
 local function notify(player, message, r, g, b)
     if isElement(player) then
@@ -19,6 +21,13 @@ local function quantity(value)
     value = math.floor(tonumber(value) or 1)
     if value < 1 then return 1 end
     if value > 999 then return 999 end
+    return value
+end
+
+local function clamp(value, minValue, maxValue)
+    value = math.floor(tonumber(value) or minValue)
+    if value < minValue then return minValue end
+    if value > maxValue then return maxValue end
     return value
 end
 
@@ -149,17 +158,51 @@ local function findNotebook(player, uid)
     return nil
 end
 
-local function saveNotebook(player, uid, text)
-    local item = findNotebook(player, uid)
-    if not item then return false, "Nie masz tego notesu." end
+local function sanitizeBody(text)
+    text = tostring(text or "")
+    if #text > NOTEBOOK_MAX_BODY then text = text:sub(1, NOTEBOOK_MAX_BODY) end
+    return text
+end
 
-    text = HRP.Utils.trim(tostring(text or ""))
-    if #text < 1 then return false, "Notatka jest pusta." end
-    if #text > 500 then text = text:sub(1, 500) end
+local function normalizeNotebookMetadata(metadata)
+    metadata = type(metadata) == "table" and metadata or {}
+    local timestamp = now()
+    local book = type(metadata.notebook) == "table" and metadata.notebook or {}
+    local rawPages = type(book.pages) == "table" and book.pages or {}
+    local pages = {}
 
-    local metadata = type(item.metadata) == "table" and item.metadata or {}
-    metadata.note = text
+    for i, page in ipairs(rawPages) do
+        if #pages >= NOTEBOOK_MAX_PAGES then break end
+        page = type(page) == "table" and page or {}
+        pages[#pages + 1] = {
+            title = tostring(page.title or ("Strona " .. tostring(i))):sub(1, 32),
+            body = sanitizeBody(page.body),
+            pinned = page.pinned == true,
+            createdAt = tonumber(page.createdAt) or timestamp,
+            updatedAt = tonumber(page.updatedAt) or timestamp
+        }
+    end
 
+    if #pages == 0 then
+        pages[1] = {
+            title = "Strona 1",
+            body = sanitizeBody(metadata.note),
+            pinned = false,
+            createdAt = timestamp,
+            updatedAt = timestamp
+        }
+    end
+
+    book.title = tostring(book.title or "Notes"):sub(1, 32)
+    book.pages = pages
+    book.activePage = clamp(book.activePage or 1, 1, #pages)
+    book.updatedAt = timestamp
+    metadata.notebook = book
+    metadata.note = nil
+    return metadata, book
+end
+
+local function persistNotebook(player, item, metadata)
     local ok = HRP.DB.exec([[UPDATE character_inventory
         SET metadata_json = ?, updated_at = ?
         WHERE id = ? AND character_id = ?]], {
@@ -168,10 +211,56 @@ local function saveNotebook(player, uid, text)
             item.uid,
             getCharacterId(player)
         })
+    if ok and HRP.Inventory.load then HRP.Inventory.load(player, false) end
+    return ok
+end
 
-    if not ok then return false, "Nie udalo sie zapisac notesu." end
-    if HRP.Inventory.load then HRP.Inventory.load(player, false) end
-    return true, "Zapisano notes."
+local function saveNotebookPage(player, uid, pageNo, text)
+    local item = findNotebook(player, uid)
+    if not item then return false, "Nie masz tego notesu." end
+    local metadata, book = normalizeNotebookMetadata(item.metadata)
+    pageNo = clamp(pageNo or book.activePage or 1, 1, #book.pages)
+    book.pages[pageNo].body = sanitizeBody(text)
+    book.pages[pageNo].updatedAt = now()
+    book.activePage = pageNo
+    if not persistNotebook(player, item, metadata) then return false, "Nie udalo sie zapisac strony notesu." end
+    return true, "Zapisano strone notesu " .. tostring(pageNo) .. "/" .. tostring(#book.pages) .. "."
+end
+
+local function addNotebookPage(player, uid)
+    local item = findNotebook(player, uid)
+    if not item then return false, "Nie masz tego notesu." end
+    local metadata, book = normalizeNotebookMetadata(item.metadata)
+    if #book.pages >= NOTEBOOK_MAX_PAGES then return false, "Ten notes ma juz maksymalna liczbe stron." end
+    local pageNo = #book.pages + 1
+    book.pages[pageNo] = { title = "Strona " .. tostring(pageNo), body = "", pinned = false, createdAt = now(), updatedAt = now() }
+    book.activePage = pageNo
+    if not persistNotebook(player, item, metadata) then return false, "Nie udalo sie dodac strony." end
+    return true, "Dodano nowa strone notesu."
+end
+
+local function deleteNotebookPage(player, uid, pageNo)
+    local item = findNotebook(player, uid)
+    if not item then return false, "Nie masz tego notesu." end
+    local metadata, book = normalizeNotebookMetadata(item.metadata)
+    if #book.pages <= 1 then return false, "Nie mozna usunac ostatniej strony notesu." end
+    pageNo = clamp(pageNo or book.activePage or 1, 1, #book.pages)
+    table.remove(book.pages, pageNo)
+    book.activePage = clamp(pageNo, 1, #book.pages)
+    if not persistNotebook(player, item, metadata) then return false, "Nie udalo sie usunac strony." end
+    return true, "Usunieto strone notesu."
+end
+
+local function toggleNotebookPin(player, uid, pageNo)
+    local item = findNotebook(player, uid)
+    if not item then return false, "Nie masz tego notesu." end
+    local metadata, book = normalizeNotebookMetadata(item.metadata)
+    pageNo = clamp(pageNo or book.activePage or 1, 1, #book.pages)
+    book.pages[pageNo].pinned = not book.pages[pageNo].pinned
+    book.pages[pageNo].updatedAt = now()
+    book.activePage = pageNo
+    if not persistNotebook(player, item, metadata) then return false, "Nie udalo sie zmienic przypiecia." end
+    return true, book.pages[pageNo].pinned and "Przypieto strone notesu." or "Odpieto strone notesu."
 end
 
 local function giveCash(player, amount)
@@ -305,8 +394,14 @@ addEventHandler("HeavyRPG:Inventory:menuAction", resourceRoot, function(action, 
         ok, message = HRP.Inventory.drop(player, tonumber(payload.uid), payload.amount or 1)
     elseif action == "item_sell" then
         ok, message = sellItem(player, payload.uid, payload.amount, payload.price)
-    elseif action == "notebook_save" then
-        ok, message = saveNotebook(player, payload.uid, payload.text)
+    elseif action == "notebook_save" or action == "notebook_save_page" then
+        ok, message = saveNotebookPage(player, payload.uid, payload.page, payload.text)
+    elseif action == "notebook_new_page" then
+        ok, message = addNotebookPage(player, payload.uid)
+    elseif action == "notebook_delete_page" then
+        ok, message = deleteNotebookPage(player, payload.uid, payload.page)
+    elseif action == "notebook_toggle_pin" then
+        ok, message = toggleNotebookPin(player, payload.uid, payload.page)
     elseif action == "phone_open" and HRP.Phone and HRP.Phone.openPanel then
         ok, message = HRP.Phone.openPanel(player)
     elseif action == "phone_contacts" and HRP.Phone and HRP.Phone.openContacts then
