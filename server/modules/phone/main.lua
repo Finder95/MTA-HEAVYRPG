@@ -168,14 +168,13 @@ local function addContact(player, name, number)
     return ok == true, ok and "Dodano kontakt: " .. name .. "." or "Nie udalo sie dodac kontaktu."
 end
 
-local function sendSms(player, number, body)
+local function sendSms(player, number, body, callback)
     number = cleanNumber(number)
     body = safeBody(body)
-    if #number < 3 or #body < 1 then return false, "Podaj numer i tresc SMS." end
+    if #number < 3 or #body < 1 then if callback then callback(false, "Podaj numer i tresc SMS.") end return false end
 
-    local resultOk, resultMessage = false, "Nie udalo sie wyslac SMS."
     Phone.ensureNumber(player, function(ok, senderNumber)
-        if not ok then resultOk, resultMessage = false, senderNumber return end
+        if not ok then if callback then callback(false, senderNumber) end return end
         local timestamp = now()
         local saved = HRP.DB.exec([[INSERT INTO phone_messages (sender_character_id, sender_number, receiver_number, body, created_at) VALUES(?, ?, ?, ?, ?)]], {
             getCharacterId(player),
@@ -184,13 +183,13 @@ local function sendSms(player, number, body)
             body,
             timestamp
         })
-        if saved then
-            resultOk, resultMessage = true, "Wyslano SMS do " .. number .. "."
-            local target = Phone.findOnlineByNumber(number)
-            if target then notify(target, "SMS od " .. senderNumber .. ": " .. body, 180, 220, 170) sendData(target) end
-        end
+        if not saved then if callback then callback(false, "Nie udalo sie wyslac SMS.") end return end
+
+        local target = Phone.findOnlineByNumber(number)
+        if target then notify(target, "SMS od " .. senderNumber .. ": " .. body, 180, 220, 170) sendData(target) end
+        if callback then callback(true, "Wyslano SMS do " .. number .. ".") end
     end)
-    return resultOk, resultMessage
+    return true
 end
 
 local function handleAddContact(player, _, name, number)
@@ -200,9 +199,10 @@ local function handleAddContact(player, _, name, number)
 end
 
 local function handleSmsCommand(player, _, number, ...)
-    local ok, message = sendSms(player, number, table.concat({ ... }, " "))
-    notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
-    if ok then sendData(player) end
+    sendSms(player, number, table.concat({ ... }, " "), function(ok, message)
+        notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+        if ok then sendData(player) end
+    end)
 end
 
 local function attachPlayer(player)
@@ -225,11 +225,13 @@ end)
 
 addEvent("HeavyRPG:Phone:sendSms", true)
 addEventHandler("HeavyRPG:Phone:sendSms", resourceRoot, function(payload)
+    local player = client
     payload = type(payload) == "string" and fromJSON(payload) or payload
     payload = type(payload) == "table" and payload or {}
-    local ok, message = sendSms(client, payload.number, payload.body)
-    notify(client, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
-    if ok then sendData(client) end
+    sendSms(player, payload.number, payload.body, function(ok, message)
+        notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+        if ok then sendData(player) end
+    end)
 end)
 
 local module = {}
