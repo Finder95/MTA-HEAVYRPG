@@ -9,157 +9,29 @@
 <body>
     <main class="ap-shell">
         <aside class="ap-rail">
-            <div class="brand-block">
-                <div class="brand-mark">HRP</div>
-                <div>
-                    <strong>Staff Command</strong>
-                    <span id="selfRole">sesja admina</span>
-                </div>
-            </div>
-
+            <div class="brand-block"><div class="brand-mark">HRP</div><div><strong>Staff Command</strong><span id="selfRole">sesja admina</span></div></div>
             <nav class="rail-nav">
-                <button class="nav-btn active" data-mode="ops">Operacje</button>
-                <button class="nav-btn" data-mode="players">Gracze</button>
-                <button class="nav-btn" data-mode="moderation">Moderacja</button>
-                <button class="nav-btn" data-mode="punishments">Kary</button>
-                <button class="nav-btn" data-mode="teleports">Teleporty</button>
-                <button class="nav-btn" data-mode="vehicles">Pojazdy</button>
-                <button class="nav-btn" data-mode="character">Postac</button>
-                <button class="nav-btn" data-mode="survival">Survival</button>
-                <button class="nav-btn" data-mode="inventory">Inventory</button>
-                <button class="nav-btn" data-mode="bank">Bank</button>
-                <button class="nav-btn" data-mode="world">Swiat</button>
-                <button class="nav-btn" data-mode="audit">Audit</button>
+                <button class="nav-btn active" data-mode="ops">Operacje</button><button class="nav-btn" data-mode="players">Gracze</button><button class="nav-btn" data-mode="moderation">Moderacja</button><button class="nav-btn" data-mode="staff">Staff</button><button class="nav-btn" data-mode="punishments">Kary</button><button class="nav-btn" data-mode="teleports">Teleporty</button><button class="nav-btn" data-mode="vehicles">Pojazdy</button><button class="nav-btn" data-mode="character">Postac</button><button class="nav-btn" data-mode="survival">Survival</button><button class="nav-btn" data-mode="inventory">Inventory</button><button class="nav-btn" data-mode="bank">Bank</button><button class="nav-btn" data-mode="world">Swiat</button><button class="nav-btn" data-mode="audit">Audit</button>
             </nav>
-
-            <section class="rail-status">
-                <div><span>Online</span><strong id="railOnline">0</strong></div>
-                <div><span>Staff</span><strong id="railStaff">0</strong></div>
-                <div><span>Kary</span><strong id="railPunishments">0</strong></div>
-                <div><span>Dropy</span><strong id="railDrops">0</strong></div>
-            </section>
-
-            <button id="refresh" class="rail-action">Odswiez dane</button>
-            <button id="close" class="rail-action danger">Zamknij panel</button>
+            <section class="rail-status"><div><span>Online</span><strong id="railOnline">0</strong></div><div><span>Staff</span><strong id="railStaff">0</strong></div><div><span>Kary</span><strong id="railPunishments">0</strong></div><div><span>Dropy</span><strong id="railDrops">0</strong></div></section>
+            <button id="refresh" class="rail-action">Odswiez dane</button><button id="close" class="rail-action danger">Zamknij panel</button>
         </aside>
-
         <section class="ap-main">
-            <header class="command-header">
-                <div>
-                    <p class="eyebrow">HeavyRPG administration</p>
-                    <h1 id="screenTitle">Operacje live</h1>
-                    <span id="targetHint" class="target-hint">Brak wybranego gracza</span>
-                </div>
-                <div class="command-box">
-                    <input id="commandInput" type="text" placeholder="Komenda: heal, armor, goto, bring, cash 500, item water_bottle 2, need hunger 100, announce tekst..." />
-                    <button id="runCommand">Wykonaj</button>
-                </div>
-            </header>
-
+            <header class="command-header"><div><p class="eyebrow">HeavyRPG administration</p><h1 id="screenTitle">Operacje live</h1><span id="targetHint" class="target-hint">Brak wybranego gracza</span></div><div class="command-box"><input id="commandInput" type="text" placeholder="Komenda: heal, armor, goto, bring, cash 500, item water_bottle 2, need hunger 100, announce tekst..." /><button id="runCommand">Wykonaj</button></div></header>
             <section class="metric-strip" id="metrics"></section>
-
-            <section class="mode active" data-mode="ops">
-                <div class="ops-grid">
-                    <section class="panel roster-panel">
-                        <div class="panel-head">
-                            <div><h2>Roster online</h2><span id="onlineCount">0 graczy</span></div>
-                            <input id="search" type="search" placeholder="Szukaj gracza, postaci, serialu..." />
-                        </div>
-                        <div id="playerList" class="player-list"></div>
-                    </section>
-                    <section class="panel inspector-panel">
-                        <div class="panel-head">
-                            <div><h2>Inspektor gracza</h2><span id="selectedName">Nie wybrano celu</span></div>
-                            <button id="copySerial" class="soft-btn">Serial</button>
-                        </div>
-                        <div id="inspector" class="empty-state">Wybierz gracza z rosteru.</div>
-                    </section>
-                    <aside class="panel side-panel">
-                        <div class="panel-head"><div><h2>Timeline</h2><span>ostatnie akcje</span></div></div>
-                        <div id="auditCompact" class="timeline"></div>
-                    </aside>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="players">
-                <section class="panel full-panel">
-                    <div class="panel-head"><div><h2>Pelna tabela graczy</h2><span>stan live</span></div></div>
-                    <table><thead><tr><th>Gracz</th><th>Postac</th><th>HP</th><th>Armor</th><th>Skin</th><th>Cash</th><th>Bank</th><th>Dim/Int</th><th>Ping</th><th>Akcje</th></tr></thead><tbody id="playersTable"></tbody></table>
-                </section>
-            </section>
-
-            <section class="mode" data-mode="moderation">
-                <div class="tool-grid four">
-                    <section class="panel"><div class="panel-head"><div><h2>Szybkie akcje</h2><span>target online</span></div></div><div class="action-grid"><button data-action="heal">HP 100</button><button data-action="armor">Armor 100</button><button data-action="freeze">Freeze toggle</button><button data-action="unfreeze">Unfreeze</button><button data-action="slap">Slap</button><button data-action="kick" class="danger">Kick</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Ostrzezenie</h2><span>zapis do kar</span></div></div><label>Powod</label><input id="warnReason" value="Ostrzezenie administracji." /><button data-action="warn">Nadaj warn</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Mute</h2><span>czasowy</span></div></div><label>Powod</label><input id="muteReason" value="Mute administracji." /><label>Czas w minutach</label><input id="muteMinutes" type="number" min="1" value="30" /><div class="button-row"><button data-action="mute">Mute</button><button data-action="unmute">Unmute</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Tempban</h2><span>po serialu</span></div></div><label>Powod</label><input id="banReason" value="Tymczasowa blokada administracyjna." /><label>Czas w godzinach</label><input id="banHours" type="number" min="1" value="24" /><button data-action="tempBan" class="danger">Nadaj tempban</button></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="punishments">
-                <section class="panel full-panel"><div class="panel-head"><div><h2>Historia kar</h2><span>ostatnie 40 wpisow</span></div></div><div id="punishmentLog" class="audit-log"></div></section>
-            </section>
-
-            <section class="mode" data-mode="teleports">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Teleport gracza</h2><span>target</span></div></div><div class="action-grid"><button data-action="goto">Idz do gracza</button><button data-action="bring">Przyciagnij</button><button data-action="getHere">Get here</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Koordynaty</h2><span>x y z dim int</span></div></div><div class="form-stack"><input id="tpX" placeholder="X" /><input id="tpY" placeholder="Y" /><input id="tpZ" placeholder="Z" /><input id="tpDim" type="number" value="0" /><input id="tpInt" type="number" value="0" /><button data-action="teleportCoords">Teleportuj cel</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Wymiar/interior</h2><span>bez zmiany pozycji</span></div></div><label>Dimension</label><input id="dimValue" type="number" min="0" value="0" /><button data-action="setDimension">Ustaw dimension</button><label>Interior</label><input id="intValue" type="number" min="0" value="0" /><button data-action="setInterior">Ustaw interior</button></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="vehicles">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Pojazd gracza</h2><span>aktualny</span></div></div><div class="action-grid"><button data-action="fixVehicle">Napraw</button><button data-action="flipVehicle">Postaw na kola</button><button data-action="destroyVehicle" class="danger">Usun pojazd</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Spawn pojazdu</h2><span>model GTA</span></div></div><label>Model ID</label><input id="vehicleModel" type="number" min="400" max="611" value="411" /><label><input id="vehicleWarp" type="checkbox" checked /> wsadz gracza do pojazdu</label><button data-action="spawnVehicle">Stworz pojazd</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Status pojazdu</h2><span>target</span></div></div><div id="vehicleState" class="system-list"></div></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="character">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Wyglad</h2><span>skin</span></div></div><label>Skin ID</label><input id="skinValue" type="number" min="0" max="312" value="46" /><button data-action="setSkin">Ustaw skin</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Statystyki</h2><span>HeavyRPG</span></div></div><label>Atrybut</label><select id="statKey"><option value="strength">Sila</option><option value="endurance">Wytrzymalosc</option><option value="agility">Zrecznosc</option><option value="intelligence">Inteligencja</option><option value="charisma">Charyzma</option><option value="focus">Opanowanie</option></select><label>Wartosc</label><input id="statValue" type="number" min="0" max="100" value="8" /><button data-action="setStat">Zapisz stat</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Stan postaci</h2><span>playtime</span></div></div><div id="characterState" class="system-list"></div></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="survival">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Potrzeby</h2><span>0-100</span></div></div><label>Typ</label><select id="needKey"><option value="hunger">Glod</option><option value="thirst">Pragnienie</option><option value="energy">Energia</option><option value="hygiene">Higiena</option><option value="stress">Stres</option></select><label>Wartosc</label><input id="needValue" type="number" min="0" max="100" value="100" /><button data-action="setNeed">Ustaw potrzebe</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Presety</h2><span>szybka korekta</span></div></div><div class="action-grid"><button data-preset-need="healthy">Pelny stan</button><button data-preset-need="tired">Zmeczony</button><button data-preset-need="critical">Krytyczny</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Podglad</h2><span>target</span></div></div><div id="needsState" class="system-list"></div></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="inventory">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Dodaj item</h2><span>ekwipunek</span></div></div><label>Przedmiot</label><select id="itemId"></select><label>Ilosc</label><input id="itemQty" type="number" min="1" max="999" value="1" /><label>Jakosc</label><input id="itemQuality" type="number" min="1" max="100" value="100" /><button data-action="addItem">Dodaj przedmiot</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Zabierz item</h2><span>po item_id</span></div></div><label>Przedmiot</label><select id="takeItemId"></select><label>Ilosc</label><input id="takeItemQty" type="number" min="1" max="999" value="1" /><button data-action="takeItem">Zabierz przedmiot</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Informacje</h2><span>modul EQ</span></div></div><div id="inventoryState" class="system-list"></div></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="bank">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Gotowka</h2><span>kieszen</span></div></div><label>Kwota</label><input id="cashAmount" type="number" min="1" max="1000000" value="500" /><div class="button-row"><button data-action="giveCash">Dodaj cash</button><button data-action="takeCash">Zabierz cash</button></div></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Bank</h2><span>saldo konta</span></div></div><label>Saldo</label><input id="bankAmount" type="number" min="0" value="5000" /><button data-action="setBank">Ustaw saldo bankowe</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Payday</h2><span>ręczna wypłata</span></div></div><label>Ile okresow</label><input id="paydayPeriods" type="number" min="1" max="24" value="1" /><button data-action="payday">Wyplac payday</button></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="world">
-                <div class="tool-grid three">
-                    <section class="panel"><div class="panel-head"><div><h2>Ogloszenie</h2><span>global chat</span></div></div><label>Tresc</label><input id="announceText" type="text" maxlength="140" placeholder="Komunikat administracji..." /><button data-action="announce">Wyslij ogloszenie</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Czas</h2><span>serwer</span></div></div><label>Godzina</label><input id="worldHour" type="number" min="0" max="23" value="12" /><label>Minuta</label><input id="worldMinute" type="number" min="0" max="59" value="0" /><button data-action="setTime">Ustaw czas</button></section>
-                    <section class="panel"><div class="panel-head"><div><h2>Pogoda</h2><span>weather ID</span></div></div><label>ID pogody</label><input id="weatherValue" type="number" min="0" max="255" value="0" /><button data-action="setWeather">Ustaw pogode</button><div id="worldState" class="system-list"></div></section>
-                </div>
-            </section>
-
-            <section class="mode" data-mode="audit">
-                <section class="panel full-panel"><div class="panel-head"><div><h2>Audit administracji</h2><span>ostatnie 60 wpisow</span></div></div><div id="auditLog" class="audit-log"></div></section>
-            </section>
+            <section class="mode active" data-mode="ops"><div class="ops-grid"><section class="panel roster-panel"><div class="panel-head"><div><h2>Roster online</h2><span id="onlineCount">0 graczy</span></div><input id="search" type="search" placeholder="Szukaj gracza, postaci, serialu..." /></div><div id="playerList" class="player-list"></div></section><section class="panel inspector-panel"><div class="panel-head"><div><h2>Inspektor gracza</h2><span id="selectedName">Nie wybrano celu</span></div><button id="copySerial" class="soft-btn">Serial</button></div><div id="inspector" class="empty-state">Wybierz gracza z rosteru.</div></section><aside class="panel side-panel"><div class="panel-head"><div><h2>Timeline</h2><span>ostatnie akcje</span></div></div><div id="auditCompact" class="timeline"></div></aside></div></section>
+            <section class="mode" data-mode="players"><section class="panel full-panel"><div class="panel-head"><div><h2>Pelna tabela graczy</h2><span>stan live</span></div></div><table><thead><tr><th>Gracz</th><th>Postac</th><th>HP</th><th>Armor</th><th>Skin</th><th>Cash</th><th>Bank</th><th>Dim/Int</th><th>Ping</th><th>Akcje</th></tr></thead><tbody id="playersTable"></tbody></table></section></section>
+            <section class="mode" data-mode="moderation"><div class="tool-grid four"><section class="panel"><div class="panel-head"><div><h2>Szybkie akcje</h2><span>target online</span></div></div><div class="action-grid"><button data-action="heal">HP 100</button><button data-action="armor">Armor 100</button><button data-action="freeze">Freeze toggle</button><button data-action="unfreeze">Unfreeze</button><button data-action="slap">Slap</button><button data-action="kick" class="danger">Kick</button></div></section><section class="panel"><div class="panel-head"><div><h2>Ostrzezenie</h2><span>zapis do kar</span></div></div><label>Powod</label><input id="warnReason" value="Ostrzezenie administracji." /><button data-action="warn">Nadaj warn</button></section><section class="panel"><div class="panel-head"><div><h2>Mute</h2><span>czasowy</span></div></div><label>Powod</label><input id="muteReason" value="Mute administracji." /><label>Czas w minutach</label><input id="muteMinutes" type="number" min="1" value="30" /><div class="button-row"><button data-action="mute">Mute</button><button data-action="unmute">Unmute</button></div></section><section class="panel"><div class="panel-head"><div><h2>Tempban</h2><span>po serialu</span></div></div><label>Powod</label><input id="banReason" value="Tymczasowa blokada administracyjna." /><label>Czas w godzinach</label><input id="banHours" type="number" min="1" value="24" /><button data-action="tempBan" class="danger">Nadaj tempban</button></section></div></section>
+            <section class="mode" data-mode="staff"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Ranga administracyjna</h2><span>developer only</span></div></div><label>Poziom staff</label><select id="adminLevel"><option value="0">0 - Gracz</option><option value="1">1 - Support</option><option value="2">2 - Moderator</option><option value="3">3 - Administrator</option><option value="4">4 - Head Admin</option><option value="100">100 - Developer</option></select><button data-action="setAdmin">Zapisz range dla celu</button></section><section class="panel"><div class="panel-head"><div><h2>Bootstrap</h2><span>dostep dev</span></div></div><div class="system-list"><div class="system-item"><span>Komenda</span><strong>/rcon login mtadevelop1</strong></div><div class="system-item"><span>Panel</span><strong>/apanel</strong></div><div class="system-item"><span>Wymagany cel</span><strong>tak, dla zmiany rangi</strong></div></div></section><section class="panel"><div class="panel-head"><div><h2>Staff online</h2><span>z rosteru</span></div></div><div id="staffState" class="system-list"></div></section></div></section>
+            <section class="mode" data-mode="punishments"><section class="panel full-panel"><div class="panel-head"><div><h2>Historia kar</h2><span>ostatnie 40 wpisow</span></div></div><div id="punishmentLog" class="audit-log"></div></section></section>
+            <section class="mode" data-mode="teleports"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Teleport gracza</h2><span>target</span></div></div><div class="action-grid"><button data-action="goto">Idz do gracza</button><button data-action="bring">Przyciagnij</button><button data-action="getHere">Get here</button></div></section><section class="panel"><div class="panel-head"><div><h2>Koordynaty</h2><span>x y z dim int</span></div></div><div class="form-stack"><input id="tpX" placeholder="X" /><input id="tpY" placeholder="Y" /><input id="tpZ" placeholder="Z" /><input id="tpDim" type="number" value="0" /><input id="tpInt" type="number" value="0" /><button data-action="teleportCoords">Teleportuj cel</button></div></section><section class="panel"><div class="panel-head"><div><h2>Wymiar/interior</h2><span>bez zmiany pozycji</span></div></div><label>Dimension</label><input id="dimValue" type="number" min="0" value="0" /><button data-action="setDimension">Ustaw dimension</button><label>Interior</label><input id="intValue" type="number" min="0" value="0" /><button data-action="setInterior">Ustaw interior</button></section></div></section>
+            <section class="mode" data-mode="vehicles"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Pojazd gracza</h2><span>aktualny</span></div></div><div class="action-grid"><button data-action="fixVehicle">Napraw</button><button data-action="flipVehicle">Postaw na kola</button><button data-action="destroyVehicle" class="danger">Usun pojazd</button></div></section><section class="panel"><div class="panel-head"><div><h2>Spawn pojazdu</h2><span>model GTA</span></div></div><label>Model ID</label><input id="vehicleModel" type="number" min="400" max="611" value="411" /><label><input id="vehicleWarp" type="checkbox" checked /> wsadz gracza do pojazdu</label><button data-action="spawnVehicle">Stworz pojazd</button></section><section class="panel"><div class="panel-head"><div><h2>Status pojazdu</h2><span>target</span></div></div><div id="vehicleState" class="system-list"></div></section></div></section>
+            <section class="mode" data-mode="character"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Wyglad</h2><span>skin</span></div></div><label>Skin ID</label><input id="skinValue" type="number" min="0" max="312" value="46" /><button data-action="setSkin">Ustaw skin</button></section><section class="panel"><div class="panel-head"><div><h2>Statystyki</h2><span>HeavyRPG</span></div></div><label>Atrybut</label><select id="statKey"><option value="strength">Sila</option><option value="endurance">Wytrzymalosc</option><option value="agility">Zrecznosc</option><option value="intelligence">Inteligencja</option><option value="charisma">Charyzma</option><option value="focus">Opanowanie</option></select><label>Wartosc</label><input id="statValue" type="number" min="0" max="100" value="8" /><button data-action="setStat">Zapisz stat</button></section><section class="panel"><div class="panel-head"><div><h2>Stan postaci</h2><span>playtime</span></div></div><div id="characterState" class="system-list"></div></section></div></section>
+            <section class="mode" data-mode="survival"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Potrzeby</h2><span>0-100</span></div></div><label>Typ</label><select id="needKey"><option value="hunger">Glod</option><option value="thirst">Pragnienie</option><option value="energy">Energia</option><option value="hygiene">Higiena</option><option value="stress">Stres</option></select><label>Wartosc</label><input id="needValue" type="number" min="0" max="100" value="100" /><button data-action="setNeed">Ustaw potrzebe</button></section><section class="panel"><div class="panel-head"><div><h2>Presety</h2><span>szybka korekta</span></div></div><div class="action-grid"><button data-preset-need="healthy">Pelny stan</button><button data-preset-need="tired">Zmeczony</button><button data-preset-need="critical">Krytyczny</button></div></section><section class="panel"><div class="panel-head"><div><h2>Podglad</h2><span>target</span></div></div><div id="needsState" class="system-list"></div></section></div></section>
+            <section class="mode" data-mode="inventory"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Dodaj item</h2><span>ekwipunek</span></div></div><label>Przedmiot</label><select id="itemId"></select><label>Ilosc</label><input id="itemQty" type="number" min="1" max="999" value="1" /><label>Jakosc</label><input id="itemQuality" type="number" min="1" max="100" value="100" /><button data-action="addItem">Dodaj przedmiot</button></section><section class="panel"><div class="panel-head"><div><h2>Zabierz item</h2><span>po item_id</span></div></div><label>Przedmiot</label><select id="takeItemId"></select><label>Ilosc</label><input id="takeItemQty" type="number" min="1" max="999" value="1" /><button data-action="takeItem">Zabierz przedmiot</button></section><section class="panel"><div class="panel-head"><div><h2>Informacje</h2><span>modul EQ</span></div></div><div id="inventoryState" class="system-list"></div></section></div></section>
+            <section class="mode" data-mode="bank"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Gotowka</h2><span>kieszen</span></div></div><label>Kwota</label><input id="cashAmount" type="number" min="1" max="1000000" value="500" /><div class="button-row"><button data-action="giveCash">Dodaj cash</button><button data-action="takeCash">Zabierz cash</button></div></section><section class="panel"><div class="panel-head"><div><h2>Bank</h2><span>saldo konta</span></div></div><label>Saldo</label><input id="bankAmount" type="number" min="0" value="5000" /><button data-action="setBank">Ustaw saldo bankowe</button></section><section class="panel"><div class="panel-head"><div><h2>Payday</h2><span>reczna wyplata</span></div></div><label>Ile okresow</label><input id="paydayPeriods" type="number" min="1" max="24" value="1" /><button data-action="payday">Wyplac payday</button></section></div></section>
+            <section class="mode" data-mode="world"><div class="tool-grid three"><section class="panel"><div class="panel-head"><div><h2>Ogloszenie</h2><span>global chat</span></div></div><label>Tresc</label><input id="announceText" type="text" maxlength="140" placeholder="Komunikat administracji..." /><button data-action="announce">Wyslij ogloszenie</button></section><section class="panel"><div class="panel-head"><div><h2>Czas</h2><span>serwer</span></div></div><label>Godzina</label><input id="worldHour" type="number" min="0" max="23" value="12" /><label>Minuta</label><input id="worldMinute" type="number" min="0" max="59" value="0" /><button data-action="setTime">Ustaw czas</button></section><section class="panel"><div class="panel-head"><div><h2>Pogoda</h2><span>weather ID</span></div></div><label>ID pogody</label><input id="weatherValue" type="number" min="0" max="255" value="0" /><button data-action="setWeather">Ustaw pogode</button><div id="worldState" class="system-list"></div></section></div></section>
+            <section class="mode" data-mode="audit"><section class="panel full-panel"><div class="panel-head"><div><h2>Audit administracji</h2><span>ostatnie 60 wpisow</span></div></div><div id="auditLog" class="audit-log"></div></section></section>
         </section>
     </main>
     <script src="app.js"></script>
