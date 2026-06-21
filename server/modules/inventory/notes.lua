@@ -154,6 +154,10 @@ local function isVehicleNote(note)
     return type(note) == "table" and (tostring(note.placeType or "") == "vehicle_windshield" or (note.vehicle and isElement(note.vehicle) and getElementType(note.vehicle) == "vehicle"))
 end
 
+local function playerInVehicle(player)
+    return isElement(player) and getPedOccupiedVehicle(player) ~= false and getPedOccupiedVehicle(player) ~= nil
+end
+
 local function worldToElementLocal(element, wx, wy, wz)
     local matrix = isElement(element) and getElementMatrix(element)
     if not matrix then return nil end
@@ -359,6 +363,9 @@ local function placedNoteAction(player, action, noteId)
     if getDistanceBetweenPoints3D(px, py, pz, x, y, z) > 4.0 then return false, "Jestes za daleko od notatki." end
 
     action = tostring(action or "")
+    if isVehicleNote(note) and (action == "take" or action == "destroy") and playerInVehicle(player) then
+        return false, "Najpierw wysiadz z pojazdu, zeby zdjac kartke zza wycieraczki."
+    end
     if action == "take" then
         local added, addMessage = HRP.Inventory.add(player, "note_page", 1, note.metadata, 100)
         if not added then return false, addMessage or "Nie udalo sie zabrac kartki." end
