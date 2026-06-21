@@ -20,6 +20,7 @@
     <script src="server/modules/auth/main.lua" type="server" />
     <script src="server/modules/spawn/main.lua" type="server" />
     <script src="server/modules/chat/main.lua" type="server" />
+    <script src="server/modules/scoreboard/main.lua" type="server" />
     <script src="server/modules/survival/main.lua" type="server" />
     <script src="server/modules/bank/main.lua" type="server" />
     <script src="server/modules/payday/main.lua" type="server" />
@@ -46,6 +47,7 @@
     <script src="client/modules/auth/main.lua" type="client" />
     <script src="client/modules/character/main.lua" type="client" />
     <script src="client/modules/hud/main.lua" type="client" />
+    <script src="client/modules/scoreboard/main.lua" type="client" />
     <script src="client/modules/inventory/main.lua" type="client" />
     <script src="client/modules/inventory/note_vehicle_prompt.lua" type="client" />
     <script src="client/modules/inventory/note_placement.lua" type="client" />
