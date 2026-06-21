@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HeavyRPG Phone</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <main class="phone-shell">
+        <button class="side side-left" id="volumeButton" aria-label="Volume"></button>
+        <button class="side side-right" id="powerButton" aria-label="Power"></button>
+        <section class="device">
+            <div class="speaker"></div>
+            <div class="screen">
+                <header class="statusbar">
+                    <span id="clock">21:37</span>
+                    <span id="statusNumber">555000000</span>
+                    <span>LTE 82%</span>
+                </header>
+
+                <section class="view active" data-view="home">
+                    <div class="home-head">
+                        <span>HeavyPhone</span>
+                        <strong id="homeNumber">555000000</strong>
+                    </div>
+                    <div class="app-grid">
+                        <button class="app" data-open="dialer"><span>☎</span>Telefon</button>
+                        <button class="app" data-open="sms"><span>✉</span>SMS</button>
+                        <button class="app" data-open="contacts"><span>◎</span>Kontakty</button>
+                        <button class="app" data-open="browser"><span>⌕</span>Przegladarka</button>
+                    </div>
+                </section>
+
+                <section class="view" data-view="dialer">
+                    <h1>Telefon</h1>
+                    <input id="callNumber" class="input" placeholder="Numer telefonu" inputmode="numeric" />
+                    <div class="dial-pad" id="dialPad"></div>
+                    <button class="primary" id="callButton">Zadzwon</button>
+                    <p class="hint" id="callHint">Polaczenia sa przygotowane wizualnie. Logika rozmow glosowych bedzie osobnym etapem.</p>
+                </section>
+
+                <section class="view" data-view="sms">
+                    <h1>SMS</h1>
+                    <div class="messages" id="messages"></div>
+                    <input id="smsNumber" class="input" placeholder="Numer odbiorcy" inputmode="numeric" />
+                    <textarea id="smsBody" class="textarea" maxlength="160" placeholder="Tresc SMS"></textarea>
+                    <button class="primary" id="sendSms">Wyslij SMS</button>
+                </section>
+
+                <section class="view" data-view="contacts">
+                    <h1>Kontakty</h1>
+                    <div class="contacts" id="contacts"></div>
+                    <input id="contactName" class="input" placeholder="Nazwa kontaktu" />
+                    <input id="contactNumber" class="input" placeholder="Numer" inputmode="numeric" />
+                    <button class="primary" id="addContact">Dodaj kontakt</button>
+                </section>
+
+                <section class="view" data-view="browser">
+                    <h1>Przegladarka</h1>
+                    <div class="browserbar">heavy://city</div>
+                    <article class="browser-page">
+                        <strong>Los Santos Network</strong>
+                        <p>Wersja offline. Tu wejda ogloszenia, darknet, giełda, bank i strony frakcyjne.</p>
+                        <button class="ghost" data-open="home">Wroc na pulpit</button>
+                    </article>
+                </section>
+
+                <section class="view" data-view="recent">
+                    <h1>Ostatnie aplikacje</h1>
+                    <button class="recent" data-open="dialer">Telefon</button>
+                    <button class="recent" data-open="sms">SMS</button>
+                    <button class="recent" data-open="contacts">Kontakty</button>
+                    <button class="recent" data-open="browser">Przegladarka</button>
+                </section>
+            </div>
+            <nav class="nav">
+                <button id="backButton" aria-label="Back">‹</button>
+                <button id="homeButton" aria-label="Home">○</button>
+                <button id="recentButton" aria-label="Recent">☰</button>
+            </nav>
+        </section>
+    </main>
+    <script src="app.js?v=20260621-1"></script>
+</body>
+</html>
