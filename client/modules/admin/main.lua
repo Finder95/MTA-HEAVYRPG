@@ -10,8 +10,8 @@ HRP.ClientAdmin = HRP.ClientAdmin or {
     sy = 0,
     x = 0,
     y = 0,
-    w = 1280,
-    h = 760,
+    w = 1480,
+    h = 860,
     lastX = 0,
     lastY = 0
 }
@@ -26,11 +26,14 @@ end
 
 local function updateBounds()
     Panel.sx, Panel.sy = guiGetScreenSize()
-    local scale = math.min(Panel.sx / 1440, Panel.sy / 900)
+    local baseW, baseH = 1480, 860
+    local scale = math.min(Panel.sx / 1600, Panel.sy / 940)
     if scale < 0.72 then scale = 0.72 end
-    if scale > 1.0 then scale = 1.0 end
-    Panel.w = math.floor(1280 * scale)
-    Panel.h = math.floor(760 * scale)
+    if scale > 1.08 then scale = 1.08 end
+    Panel.w = math.floor(baseW * scale)
+    Panel.h = math.floor(baseH * scale)
+    if Panel.w > Panel.sx - 48 then Panel.w = Panel.sx - 48 end
+    if Panel.h > Panel.sy - 48 then Panel.h = Panel.sy - 48 end
     Panel.x = math.floor((Panel.sx - Panel.w) / 2)
     Panel.y = math.floor((Panel.sy - Panel.h) / 2)
 end
