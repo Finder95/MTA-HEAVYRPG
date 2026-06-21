@@ -10,7 +10,14 @@
     function $(q) { return document.querySelector(q); }
     function $$(q, root) { return Array.prototype.slice.call((root || document).querySelectorAll(q)); }
     function unwrap(v) { return Array.isArray(v) && v.length === 1 && typeof v[0] === 'object' ? v[0] : v; }
-    function emit(name, a, b) { if (window.mta && typeof window.mta.triggerEvent === 'function') window.mta.triggerEvent(name, a, b); else console.log('[admin]', name, a, b); }
+    function arg(v) { return v && typeof v === 'object' ? JSON.stringify(v) : v; }
+    function emit(name, a, b) {
+        if (window.mta && typeof window.mta.triggerEvent === 'function') {
+            if (typeof b !== 'undefined') window.mta.triggerEvent(name, arg(a), arg(b));
+            else if (typeof a !== 'undefined') window.mta.triggerEvent(name, arg(a));
+            else window.mta.triggerEvent(name);
+        } else console.log('[admin]', name, a, b);
+    }
     function html(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
     function money(v) { return '$' + Math.floor(Number(v) || 0).toLocaleString('en-US'); }
     function time(ts) { var d = new Date((Number(ts) || 0) * 1000); return isNaN(d.getTime()) ? '-' : d.toLocaleString('pl-PL'); }
@@ -21,17 +28,9 @@
             return [p.name, p.character, p.accountId, p.characterId, p.serial].join(' ').toLowerCase().indexOf(q) !== -1;
         });
     }
-    function select(serial) {
-        state.selected = (state.data.players || []).filter(function (p) { return p.serial === serial; })[0] || null;
-        renderAll();
-    }
+    function select(serial) { state.selected = (state.data.players || []).filter(function (p) { return p.serial === serial; })[0] || null; renderAll(); }
     function selectedSerial() { return state.selected && state.selected.serial; }
-    function sendAction(action, extra) {
-        if (!selectedSerial()) return;
-        extra = extra || {};
-        extra.serial = selectedSerial();
-        emit('HeavyRPG:UI:admin:action', action, JSON.stringify(extra));
-    }
+    function sendAction(action, extra) { if (!selectedSerial()) return; extra = extra || {}; extra.serial = selectedSerial(); emit('HeavyRPG:UI:admin:action', action, extra); }
     function setView(view) {
         state.view = view;
         $$('.tab').forEach(function (b) { b.classList.toggle('active', b.dataset.view === view); });
@@ -41,9 +40,9 @@
     }
     function renderMetrics() {
         var s = state.data.stats || {};
-        $('#metrics').innerHTML = [
-            ['Online', s.online || 0], ['Konta', s.accounts || 0], ['Postacie', s.characters || 0], ['Notatki', s.notes || 0]
-        ].map(function (m) { return '<div class="metric"><span>' + m[0] + '</span><strong>' + m[1] + '</strong></div>'; }).join('');
+        $('#metrics').innerHTML = [['Online', s.online || 0], ['Konta', s.accounts || 0], ['Postacie', s.characters || 0], ['Notatki', s.notes || 0]].map(function (m) {
+            return '<div class="metric"><span>' + m[0] + '</span><strong>' + m[1] + '</strong></div>';
+        }).join('');
     }
     function playerRow(p) {
         return '<div class="player ' + (state.selected && state.selected.serial === p.serial ? 'active' : '') + '" data-serial="' + html(p.serial) + '"><div><strong>' + html(p.name) + '</strong><small>' + html(p.character || '-') + ' | ID konta ' + html(p.accountId || '-') + ' | ping ' + html(p.ping || 0) + '</small></div><span class="badge">' + html(p.adminRole || 'Gracz') + '</span></div>';
@@ -74,22 +73,18 @@
     }
     function renderSystem() {
         var s = state.data.stats || {};
-        $('#systemState').innerHTML = [
-            ['Status panelu', 'aktywny'], ['Poziom sesji', (state.data.self && state.data.self.role) || '-'], ['Graczy online', s.online || 0], ['Limit notatek / postac', '25'], ['Limit notatek globalny', '500']
-        ].map(function (row) { return '<div class="system-item"><span>' + html(row[0]) + '</span><strong>' + html(row[1]) + '</strong></div>'; }).join('');
+        $('#systemState').innerHTML = [['Status panelu', 'aktywny'], ['Poziom sesji', (state.data.self && state.data.self.role) || '-'], ['Graczy online', s.online || 0], ['Limit notatek / postac', '25'], ['Limit notatek globalny', '500']].map(function (row) {
+            return '<div class="system-item"><span>' + html(row[0]) + '</span><strong>' + html(row[1]) + '</strong></div>';
+        }).join('');
     }
-    function renderAll() {
-        $('#selfRole').textContent = ((state.data.self && state.data.self.role) || 'Admin') + ' | lvl ' + ((state.data.self && state.data.self.level) || 0);
-        renderMetrics(); renderPlayers(); renderQuickActions(); renderAudit(); renderSystem();
-    }
+    function renderAll() { $('#selfRole').textContent = ((state.data.self && state.data.self.role) || 'Admin') + ' | lvl ' + ((state.data.self && state.data.self.level) || 0); renderMetrics(); renderPlayers(); renderQuickActions(); renderAudit(); renderSystem(); }
     function applyData(data) { state.data = unwrap(data) || state.data; if (state.selected) select(state.selected.serial); else renderAll(); }
     $$('.tab').forEach(function (b) { b.onclick = function () { setView(b.dataset.view); }; });
-    $('#refresh').onclick = function () { emit('HeavyRPG:UI:admin:request', {}); };
-    $('#close').onclick = function () { emit('HeavyRPG:UI:admin:close', {}); };
+    $('#refresh').onclick = function () { emit('HeavyRPG:UI:admin:request'); };
+    $('#close').onclick = function () { emit('HeavyRPG:UI:admin:close'); };
     $('#search').oninput = function () { state.search = this.value || ''; renderPlayers(); };
     $$('[data-action]').forEach(function (b) { b.onclick = function () {
-        var action = b.dataset.action;
-        var extra = {};
+        var action = b.dataset.action; var extra = {};
         if (action === 'giveCash' || action === 'takeCash') extra.amount = Number($('#cashAmount').value) || 1;
         if (action === 'setAdmin') extra.level = Number($('#adminLevel').value) || 0;
         sendAction(action, extra);
