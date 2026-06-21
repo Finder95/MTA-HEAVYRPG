@@ -22,6 +22,9 @@ local NOTE_SCALE = 0.62
 local NOTE_WORLD_Z_OFFSET = 0.10
 local NOTE_VEHICLE_Z_OFFSET = 0.08
 local NOTE_VEHICLE_RX = 68
+local NOTE_VEHICLE_ATTACH_X = 0
+local NOTE_VEHICLE_ATTACH_Y = 1.25
+local NOTE_VEHICLE_ATTACH_Z = 0.55
 local noteObjects = {}
 
 local function isPlacedNoteMarker(markerType, size, r, g, b)
@@ -36,19 +39,14 @@ local function isVehicle(element)
     return isElement(element) and getElementType(element) == "vehicle"
 end
 
-local function objectFor(element)
-    return noteObjects[element]
+local function numberOr(value, fallback)
+    value = tonumber(value)
+    if value == nil then return fallback end
+    return value
 end
 
-local function vehicleWindshieldOffset(vehicle)
-    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
-    if not minX then return 0, 1.25, 0.55, NOTE_VEHICLE_RX, 0, 0 end
-
-    local length = math.max(0.1, maxY - minY)
-    local height = math.max(0.1, maxZ - minZ)
-    local y = maxY - math.max(0.35, length * 0.20)
-    local z = minZ + height * 0.64 + NOTE_VEHICLE_Z_OFFSET
-    return 0, y, z, NOTE_VEHICLE_RX, 0, 0
+local function objectFor(element)
+    return noteObjects[element]
 end
 
 local function syncObjectBase(marker, object)
@@ -61,10 +59,12 @@ local function syncObjectBase(marker, object)
     if rawSetObjectScale then rawSetObjectScale(object, NOTE_SCALE) end
 end
 
-local function attachObjectToVehicle(object, vehicle)
+local function attachObjectToVehicle(object, vehicle, x, y, z, rz, ...)
     if not object or not isElement(object) or not isVehicle(vehicle) then return false end
-    local x, y, z, rx, ry, rz = vehicleWindshieldOffset(vehicle)
-    rawAttachElements(object, vehicle, x, y, z, rx, ry, rz)
+    local ox = numberOr(x, NOTE_VEHICLE_ATTACH_X)
+    local oy = numberOr(y, NOTE_VEHICLE_ATTACH_Y)
+    local oz = numberOr(z, NOTE_VEHICLE_ATTACH_Z) + NOTE_VEHICLE_Z_OFFSET
+    rawAttachElements(object, vehicle, ox, oy, oz, NOTE_VEHICLE_RX, 0, numberOr(rz, 0), ...)
     return true
 end
 
@@ -88,7 +88,7 @@ function Visual.ensure(marker, note)
     syncObjectBase(marker, object)
 
     if note and isVehicle(note.vehicle) then
-        attachObjectToVehicle(object, note.vehicle)
+        attachObjectToVehicle(object, note.vehicle, note.attachX, note.attachY, note.attachZ, 0)
     else
         moveObjectToMarker(marker, object)
     end
@@ -136,7 +136,7 @@ function attachElements(element, attachTo, x, y, z, rx, ry, rz, ...)
     local object = objectFor(element)
     if object and isElement(object) then
         if isVehicle(attachTo) then
-            attachObjectToVehicle(object, attachTo)
+            attachObjectToVehicle(object, attachTo, x, y, z, rz, ...)
         else
             rawAttachElements(object, attachTo, x or 0, y or 0, (z or 0) + NOTE_WORLD_Z_OFFSET, rx or 0, ry or 0, rz or 0, ...)
         end
