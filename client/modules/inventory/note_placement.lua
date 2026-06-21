@@ -13,6 +13,7 @@ local placing = nil
 local clickAttached = false
 local keyAttached = false
 local renderAttached = false
+local enterInterceptAttached = false
 local placementDepths = { 3.0, 5.0, 8.0, 12.0 }
 
 local function color(r, g, b, a) return tocolor(r, g, b, a or 255) end
@@ -20,6 +21,13 @@ local function color(r, g, b, a) return tocolor(r, g, b, a or 255) end
 local function noteActionOpen()
     local action = Inv.action
     return action and action.item and tostring(action.item.itemId) == "note_page"
+end
+
+local function selectedNoteAction()
+    local action = Inv.action
+    if not action or not action.actions then return nil end
+    local selected = tonumber(action.selected) or 1
+    return action.actions[selected]
 end
 
 local function screenPoint()
@@ -78,6 +86,15 @@ local function nearestVehicle(maxDistance)
     return best and best.vehicle or nil
 end
 
+local function clearActionPanel()
+    Inv.action = nil
+    Inv.actionScroll = 0
+    Inv.prompt = nil
+    Inv.editing = false
+    Inv.editText = ""
+    Inv.actionBounds = {}
+end
+
 local function autoPlaceVehicleNote(uid)
     local vehicle = nearestVehicle(4.8)
     if not vehicle then
@@ -85,10 +102,22 @@ local function autoPlaceVehicleNote(uid)
         return false
     end
 
+    clearActionPanel()
     triggerEvent("HeavyRPG:Inventory:close", resourceRoot)
     local x, y, z = vehicleNotePoint(vehicle)
     rawTriggerServerEvent("HeavyRPG:Inventory:placeNote", resourceRoot, uid, "vehicle", x, y, z, vehicle)
     return true
+end
+
+local function handleVehicleNoteEnter(button, press)
+    if not press or tostring(button or ""):lower() ~= "enter" then return end
+    if not noteActionOpen() or Inv.prompt or Inv.editing then return end
+    local selected = selectedNoteAction()
+    if not selected or tostring(selected.id or "") ~= "note_page_place_vehicle" then return end
+    local item = Inv.action and Inv.action.item
+    if not item then return end
+    autoPlaceVehicleNote(item.uid)
+    cancelEvent()
 end
 
 local function rayTarget(px, py, distance)
@@ -239,6 +268,14 @@ function triggerServerEvent(eventName, attachedTo, uid, mode, x, y, z, element, 
     return rawTriggerServerEvent(eventName, attachedTo, uid, mode, x, y, z, element, ...)
 end
 
+addEventHandler("onClientResourceStart", resourceRoot, function()
+    if not enterInterceptAttached then
+        addEventHandler("onClientKey", root, handleVehicleNoteEnter, true, "high+10")
+        enterInterceptAttached = true
+    end
+end)
+
 addEventHandler("onClientResourceStop", resourceRoot, function()
     if placing then stopPlacement("") end
+    if enterInterceptAttached then removeEventHandler("onClientKey", root, handleVehicleNoteEnter) enterInterceptAttached = false end
 end)
