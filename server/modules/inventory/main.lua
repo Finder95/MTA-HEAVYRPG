@@ -6,7 +6,6 @@ local Inventory = HRP.Inventory
 
 local inventories = {}
 local worldDrops = {}
-local nextDropId = 1
 local utilityItems = { cash = true, id_card = true, phone = true, notebook = true, lockpick = true }
 
 local schema = {
@@ -29,7 +28,33 @@ local schema = {
         FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE CASCADE
     )]],
     [[CREATE INDEX IF NOT EXISTS idx_character_inventory_character ON character_inventory(character_id, slot, id)]],
-    [[CREATE INDEX IF NOT EXISTS idx_character_inventory_item ON character_inventory(character_id, item_id)]]
+    [[CREATE INDEX IF NOT EXISTS idx_character_inventory_item ON character_inventory(character_id, item_id)]],
+    [[CREATE TABLE IF NOT EXISTS world_inventory_drops (
+        id TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'misc',
+        quantity INTEGER NOT NULL DEFAULT 1,
+        weight REAL NOT NULL DEFAULT 0,
+        quality INTEGER NOT NULL DEFAULT 100,
+        state TEXT NOT NULL DEFAULT 'normal',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        flags TEXT NOT NULL DEFAULT '',
+        model INTEGER NOT NULL DEFAULT 1271,
+        pos_x REAL NOT NULL,
+        pos_y REAL NOT NULL,
+        pos_z REAL NOT NULL,
+        rotation REAL NOT NULL DEFAULT 0,
+        interior INTEGER NOT NULL DEFAULT 0,
+        dimension INTEGER NOT NULL DEFAULT 0,
+        dropped_by_character_id INTEGER,
+        dropped_by_account_id INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    )]],
+    [[CREATE INDEX IF NOT EXISTS idx_world_inventory_drops_place ON world_inventory_drops(dimension, interior)]],
+    [[CREATE INDEX IF NOT EXISTS idx_world_inventory_drops_created ON world_inventory_drops(created_at)]]
 }
 
 local function cfg() return HRP.Config.inventory or {} end
@@ -84,6 +109,12 @@ local function parseFlags(flags)
     flags = tostring(flags or "")
     for flag in flags:gmatch("[^,]+") do parsed[#parsed + 1] = flag end
     return parsed
+end
+
+local function flagsToString(flags)
+    if type(flags) == "string" then return flags end
+    if type(flags) ~= "table" then return "" end
+    return table.concat(flags, ",")
 end
 
 local function notify(player, message, r, g, b)
@@ -205,7 +236,7 @@ end
 local function ensureSchema()
     for _, sql in ipairs(schema) do
         if not HRP.DB.exec(sql) then
-            HRP.Logger.error("inventory", "Nie udalo sie przygotowac tabeli ekwipunku: " .. tostring(sql))
+            HRP.Logger.error("inventory", "Nie udalo sie przygotowac tabeli ekwipunku/dropow: " .. tostring(sql))
             return false
         end
     end
@@ -407,46 +438,51 @@ local function publicDrop(drop)
     }
 end
 
-local function destroyDrop(dropId)
-    local drop = worldDrops[dropId]
+local function rowToDrop(row)
+    if type(row) ~= "table" then return nil end
+    return {
+        id = tostring(row.id or ""),
+        itemId = tostring(row.item_id or ""),
+        label = tostring(row.label or row.item_id or "Przedmiot"),
+        description = tostring(row.description or ""),
+        category = tostring(row.category or "misc"),
+        quantity = quantity(row.quantity),
+        weight = number(row.weight, 0),
+        quality = clampQuality(row.quality),
+        state = tostring(row.state or "normal"),
+        metadata = jsonDecode(row.metadata_json),
+        flags = parseFlags(row.flags),
+        model = int(row.model, 1271),
+        x = number(row.pos_x, 0),
+        y = number(row.pos_y, 0),
+        z = number(row.pos_z, 0),
+        rotation = number(row.rotation, 0),
+        interior = int(row.interior, 0),
+        dimension = int(row.dimension, 0),
+        droppedByCharacterId = tonumber(row.dropped_by_character_id),
+        droppedByAccountId = tonumber(row.dropped_by_account_id),
+        createdAt = tonumber(row.created_at) or now(),
+        updatedAt = tonumber(row.updated_at) or now()
+    }
+end
+
+local function destroyDropElements(dropId)
+    local drop = worldDrops[tostring(dropId)]
     if not drop then return end
     if drop.marker and isElement(drop.marker) then destroyElement(drop.marker) end
     if drop.object and isElement(drop.object) then destroyElement(drop.object) end
-    worldDrops[dropId] = nil
+    worldDrops[tostring(dropId)] = nil
 end
 
-local function createWorldDrop(player, item, qty)
-    if not isElement(player) or not item then return false end
-    local x, y, z = getElementPosition(player)
-    local _, _, rz = getElementRotation(player)
-    local dropId = nextDropId
-    nextDropId = nextDropId + 1
-
-    local drop = {
-        id = dropId,
-        itemId = item.itemId,
-        label = item.label,
-        description = item.description,
-        category = item.category,
-        quantity = quantity(qty),
-        weight = item.weight,
-        quality = item.quality,
-        state = item.state,
-        metadata = item.metadata or {},
-        flags = item.flags or {},
-        x = x,
-        y = y,
-        z = z - 0.85,
-        interior = getElementInterior(player),
-        dimension = getElementDimension(player),
-        createdAt = now()
-    }
+local function createDropElements(drop)
+    if not drop or not drop.id or drop.id == "" then return false end
+    destroyDropElements(drop.id)
 
     drop.marker = createMarker(drop.x, drop.y, drop.z, "cylinder", 1.15, 190, 157, 87, 95)
-    drop.object = createObject(dropModel(item), drop.x, drop.y, drop.z + 0.18, 0, 0, rz or 0)
+    drop.object = createObject(drop.model or 1271, drop.x, drop.y, drop.z + 0.18, 0, 0, drop.rotation or 0)
     if drop.marker and isElement(drop.marker) then
-        setElementInterior(drop.marker, drop.interior)
-        setElementDimension(drop.marker, drop.dimension)
+        setElementInterior(drop.marker, drop.interior or 0)
+        setElementDimension(drop.marker, drop.dimension or 0)
         setElementData(drop.marker, "hrp:drop:id", drop.id, false)
         addEventHandler("onMarkerHit", drop.marker, function(hitElement, matchingDimension)
             if matchingDimension and isElement(hitElement) and getElementType(hitElement) == "player" then
@@ -460,14 +496,96 @@ local function createWorldDrop(player, item, qty)
         end)
     end
     if drop.object and isElement(drop.object) then
-        setElementInterior(drop.object, drop.interior)
-        setElementDimension(drop.object, drop.dimension)
+        setElementInterior(drop.object, drop.interior or 0)
+        setElementDimension(drop.object, drop.dimension or 0)
         setElementCollisionsEnabled(drop.object, false)
     end
 
-    worldDrops[dropId] = drop
-    setTimer(function(id) destroyDrop(id) end, 2 * 60 * 60 * 1000, 1, dropId)
+    worldDrops[drop.id] = drop
     return true
+end
+
+local function makeDropId(player)
+    return table.concat({ "drop", tostring(now()), tostring(getTickCount()), tostring(math.random(100000, 999999)), tostring(getCharacterId(player) or 0) }, "_")
+end
+
+local function persistDrop(drop)
+    return HRP.DB.exec([[INSERT INTO world_inventory_drops
+        (id, item_id, label, description, category, quantity, weight, quality, state, metadata_json, flags, model,
+        pos_x, pos_y, pos_z, rotation, interior, dimension, dropped_by_character_id, dropped_by_account_id, created_at, updated_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
+            drop.id,
+            drop.itemId,
+            drop.label,
+            drop.description,
+            drop.category,
+            drop.quantity,
+            drop.weight,
+            drop.quality,
+            drop.state,
+            jsonEncode(drop.metadata),
+            flagsToString(drop.flags),
+            drop.model,
+            drop.x,
+            drop.y,
+            drop.z,
+            drop.rotation,
+            drop.interior,
+            drop.dimension,
+            drop.droppedByCharacterId,
+            drop.droppedByAccountId,
+            drop.createdAt,
+            drop.updatedAt
+        })
+end
+
+local function createWorldDrop(player, item, qty)
+    if not isElement(player) or not item then return false, "Nie udalo sie ustalic pozycji dropu." end
+    local x, y, z = getElementPosition(player)
+    local _, _, rz = getElementRotation(player)
+    local timestamp = now()
+    local drop = {
+        id = makeDropId(player),
+        itemId = item.itemId,
+        label = item.label,
+        description = item.description,
+        category = item.category,
+        quantity = quantity(qty),
+        weight = item.weight,
+        quality = item.quality,
+        state = item.state,
+        metadata = item.metadata or {},
+        flags = item.flags or {},
+        model = dropModel(item),
+        x = x,
+        y = y,
+        z = z - 0.85,
+        rotation = rz or 0,
+        interior = getElementInterior(player),
+        dimension = getElementDimension(player),
+        droppedByCharacterId = getCharacterId(player),
+        droppedByAccountId = getAccountId(player),
+        createdAt = timestamp,
+        updatedAt = timestamp
+    }
+
+    if not persistDrop(drop) then return false, "Nie udalo sie zapisac dropu w bazie. Przedmiot zostal zabezpieczony." end
+    createDropElements(drop)
+    return true
+end
+
+local function loadPersistentDrops()
+    return HRP.DB.query([[SELECT * FROM world_inventory_drops ORDER BY created_at ASC]], {}, function(rows)
+        for _, row in ipairs(rows or {}) do
+            local drop = rowToDrop(row)
+            if drop then createDropElements(drop) end
+        end
+        HRP.Logger.info("inventory", "Odtworzono dropy swiata z SQLite: " .. tostring(#(rows or {})) .. ".")
+    end)
+end
+
+local function removePersistentDrop(dropId)
+    return HRP.DB.exec([[DELETE FROM world_inventory_drops WHERE id = ?]], { tostring(dropId) })
 end
 
 local function sendActionPanel(player, title, lines, footer)
@@ -580,14 +698,19 @@ function Inventory.drop(player, uid, qty)
     local droppedQty = math.min(qty, item.quantity)
     local ok, reason = removeQuantity(player, uid, droppedQty)
     if not ok then return false, reason end
-    createWorldDrop(player, item, droppedQty)
+    local persisted, dropReason = createWorldDrop(player, item, droppedQty)
+    if not persisted then
+        Inventory.add(player, item.itemId, droppedQty, item.metadata, item.quality)
+        return false, dropReason or "Nie udalo sie zapisac dropu. Przedmiot wrocil do ekwipunku."
+    end
     triggerEvent("HeavyRPG:Inventory:onItemDropped", resourceRoot, player, item.itemId, droppedQty)
     return true, "Wyrzucono na ziemie: " .. tostring(item.label) .. " x" .. tostring(droppedQty) .. "."
 end
 
 function Inventory.pickupDrop(player, dropId)
     if not isElement(player) then return false, "Gracz offline." end
-    local drop = worldDrops[tonumber(dropId)]
+    dropId = tostring(dropId or "")
+    local drop = worldDrops[dropId]
     if not drop then return false, "Ten przedmiot juz zniknal." end
     if getElementInterior(player) ~= drop.interior or getElementDimension(player) ~= drop.dimension then return false, "Jestes za daleko." end
     local px, py, pz = getElementPosition(player)
@@ -595,7 +718,11 @@ function Inventory.pickupDrop(player, dropId)
 
     local ok, message = Inventory.add(player, drop.itemId, drop.quantity, drop.metadata, drop.quality)
     if not ok then return false, message end
-    destroyDrop(drop.id)
+    if not removePersistentDrop(drop.id) then
+        Inventory.takeByItemId(player, drop.itemId, drop.quantity)
+        return false, "Nie udalo sie usunac dropu z bazy. Podnoszenie anulowane."
+    end
+    destroyDropElements(drop.id)
     triggerClientEvent(player, "HeavyRPG:Inventory:nearDrop", resourceRoot, false, { id = drop.id })
     return true, "Podniesiono: " .. tostring(drop.label) .. " x" .. tostring(drop.quantity) .. "."
 end
@@ -687,7 +814,7 @@ end)
 
 addEvent("HeavyRPG:Inventory:pickupDrop", true)
 addEventHandler("HeavyRPG:Inventory:pickupDrop", resourceRoot, function(dropId)
-    local ok, message = Inventory.pickupDrop(client, tonumber(dropId))
+    local ok, message = Inventory.pickupDrop(client, dropId)
     notify(client, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
 end)
 
@@ -697,6 +824,7 @@ addEvent("HeavyRPG:Inventory:onItemDropped", false)
 local module = {}
 function module.onStart()
     if not ensureSchema() then return end
+    loadPersistentDrops()
     local commands = cfg().commands or {}
     addEventHandler("HeavyRPG:Character:onPlayerReady", resourceRoot, attachPlayer)
     addEventHandler("onPlayerQuit", root, function() detachPlayer(source) end)
@@ -706,11 +834,11 @@ function module.onStart()
     addCommandHandler(commands.take or "zabierzitem", handleTakeCommand)
     addCommandHandler(commands.list or "itemy", handleListCommand)
     addCommandHandler("notatka", handleNoteCommand)
-    HRP.Logger.info("inventory", "Tekstowy system ekwipunku DX/SQLite gotowy z dropami swiata.")
+    HRP.Logger.info("inventory", "Tekstowy system ekwipunku DX/SQLite gotowy z trwalymi dropami swiata.")
 end
 
 addEventHandler("onResourceStop", resourceRoot, function()
-    for dropId in pairs(worldDrops) do destroyDrop(dropId) end
+    for dropId in pairs(worldDrops) do destroyDropElements(dropId) end
 end)
 
 function givePlayerInventoryItem(player, itemId, qty, metadata, quality) return Inventory.add(player, itemId, qty, metadata, quality) end
