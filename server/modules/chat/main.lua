@@ -26,6 +26,13 @@ local function cleanMessage(message)
     return message
 end
 
+local function applyCharacterIdentity(player)
+    if not hasCharacter(player) then return end
+    local name = characterName(player)
+    setElementData(player, "hrp:display:name", name, false)
+    if setPlayerNametagText then setPlayerNametagText(player, name) end
+end
+
 local function outputTeamChat(player, text)
     local team = getPlayerTeam(player)
     if not team then return false end
@@ -56,4 +63,16 @@ addEventHandler("onPlayerChat", root, function(message, messageType)
     else
         outputChatBox(characterName(source) .. ": " .. text, root, 235, 235, 235)
     end
+end)
+
+addEventHandler("HeavyRPG:Character:onPlayerReady", resourceRoot, function(player)
+    applyCharacterIdentity(player)
+end)
+
+addEventHandler("onResourceStart", resourceRoot, function()
+    setTimer(function()
+        for _, player in ipairs(getElementsByType("player")) do
+            applyCharacterIdentity(player)
+        end
+    end, 1000, 1)
 end)
