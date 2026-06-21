@@ -19,6 +19,7 @@
     <script src="server/modules/character/main.lua" type="server" />
     <script src="server/modules/auth/main.lua" type="server" />
     <script src="server/modules/spawn/main.lua" type="server" />
+    <script src="server/modules/chat/main.lua" type="server" />
     <script src="server/modules/survival/main.lua" type="server" />
     <script src="server/modules/bank/main.lua" type="server" />
     <script src="server/modules/payday/main.lua" type="server" />
