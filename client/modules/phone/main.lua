@@ -105,7 +105,7 @@ local function cameraPayload(payload)
     return tostring(payload.mode or Phone.cameraKind or "photo"), clamp(payload.zoom or Phone.cameraZoom or 1, 1, 4)
 end
 
-local function selfieStatus(ok, message, path)
+local function photoStatus(ok, message, path)
     emit("phone:selfieStatus", { ok = ok == true, message = tostring(message or ""), path = tostring(path or "") })
 end
 
@@ -114,7 +114,7 @@ local function restorePlayerAlpha()
     Phone.oldAlpha = nil
 end
 
-local function stopSelfieCamera()
+local function stopCamera()
     if not Phone.cameraMode then restorePlayerAlpha() return end
     Phone.cameraMode = false
     Phone.cameraKind = "photo"
@@ -139,17 +139,17 @@ local function applyPhotoCamera(kind, zoom)
     if kind == "selfie" then
         restorePlayerAlpha()
         setCameraMatrix(px + forwardX * 2.25, py + forwardY * 2.25, pz + 0.92, px, py, pz + 0.72, 0, fov)
-        selfieStatus(true, "Tryb selfie aktywny. Zoom: " .. string.format("%.2f", zoom) .. "x.")
+        photoStatus(true, "Tryb selfie aktywny. Zoom: " .. string.format("%.2f", zoom) .. "x.")
     else
         if Phone.oldAlpha == nil then Phone.oldAlpha = getElementAlpha(localPlayer) end
         setElementAlpha(localPlayer, 0)
         setCameraMatrix(px + forwardX * 0.42, py + forwardY * 0.42, pz + 0.78, px + forwardX * 12.0, py + forwardY * 12.0, pz + 0.84, 0, fov)
-        selfieStatus(true, "Tryb zdjecia aktywny. Twoja postac jest ukryta w kadrze. Zoom: " .. string.format("%.2f", zoom) .. "x.")
+        photoStatus(true, "Tryb zdjecia aktywny. Twoja postac jest ukryta w kadrze. Zoom: " .. string.format("%.2f", zoom) .. "x.")
     end
     Phone.cameraMode = true
 end
 
-local function startSelfieCamera(payload)
+local function startCamera(payload)
     local kind, zoom = cameraPayload(payload)
     applyPhotoCamera(kind, zoom)
 end
@@ -201,40 +201,40 @@ local function openPhone(payload)
 end
 
 local function closePhone()
-    stopSelfieCamera()
+    stopCamera()
     setVisible(false)
 end
 
-local function captureSelfieNow()
+local function capturePhotoNow()
     local sx, sy = guiGetScreenSize()
     if Phone.selfieSource and isElement(Phone.selfieSource) then destroyElement(Phone.selfieSource) end
     Phone.selfieSource = dxCreateScreenSource(sx, sy)
-    if not Phone.selfieSource then Phone.renderPaused = false selfieStatus(false, "Aparat nie mogl utworzyc zrodla obrazu.") return end
+    if not Phone.selfieSource then Phone.renderPaused = false photoStatus(false, "Aparat nie mogl utworzyc zrodla obrazu.") return end
 
     dxUpdateScreenSource(Phone.selfieSource, true)
     local pixels = dxGetTexturePixels(Phone.selfieSource)
-    if not pixels then Phone.renderPaused = false selfieStatus(false, "Aparat nie mogl pobrac obrazu. Sprawdz ustawienia screen upload.") return end
+    if not pixels then Phone.renderPaused = false photoStatus(false, "Aparat nie mogl pobrac obrazu. Sprawdz ustawienia screen upload.") return end
 
     local jpeg = dxConvertPixels(pixels, "jpeg", 88)
-    if not jpeg then Phone.renderPaused = false selfieStatus(false, "Aparat nie mogl zapisac JPEG.") return end
+    if not jpeg then Phone.renderPaused = false photoStatus(false, "Aparat nie mogl zapisac JPEG.") return end
 
     local timestamp = getRealTime().timestamp or getTickCount()
     local prefix = Phone.cameraKind == "selfie" and "phone_selfie_" or "phone_photo_"
     local path = prefix .. tostring(timestamp) .. "_" .. tostring(getTickCount()) .. ".jpg"
     local file = fileCreate(path)
-    if not file then Phone.renderPaused = false selfieStatus(false, "Nie udalo sie utworzyc pliku zdjecia.") return end
+    if not file then Phone.renderPaused = false photoStatus(false, "Nie udalo sie utworzyc pliku zdjecia.") return end
     fileWrite(file, jpeg)
     fileClose(file)
     Phone.renderPaused = false
-    selfieStatus(true, "Zdjecie zapisane: " .. path, path)
+    photoStatus(true, "Zdjecie zapisane: " .. path, path)
 end
 
-local function takeSelfie(payload)
+local function takePhoto(payload)
     local kind, zoom = cameraPayload(payload)
     applyPhotoCamera(kind, zoom)
     Phone.renderPaused = true
-    selfieStatus(true, "Chowam telefon i robie zdjecie...")
-    setTimer(captureSelfieNow, 180, 1)
+    photoStatus(true, "Chowam telefon i robie zdjecie...")
+    setTimer(capturePhotoNow, 180, 1)
 end
 
 addEvent("HeavyRPG:Phone:open", true)
@@ -273,13 +273,13 @@ addEventHandler("HeavyRPG:UI:phone:call", root, function(jsonPayload)
 end)
 
 addEvent("HeavyRPG:UI:phone:cameraStart", true)
-addEventHandler("HeavyRPG:UI:phone:cameraStart", root, startSelfieCamera)
+addEventHandler("HeavyRPG:UI:phone:cameraStart", root, startCamera)
 
 addEvent("HeavyRPG:UI:phone:cameraStop", true)
-addEventHandler("HeavyRPG:UI:phone:cameraStop", root, stopSelfieCamera)
+addEventHandler("HeavyRPG:UI:phone:cameraStop", root, stopCamera)
 
 addEvent("HeavyRPG:UI:phone:selfie", true)
-addEventHandler("HeavyRPG:UI:phone:selfie", root, function(payload) takeSelfie(decodePayload(payload)) end)
+addEventHandler("HeavyRPG:UI:phone:selfie", root, function(payload) takePhoto(decodePayload(payload)) end)
 
 bindKey("backspace", "down", function()
     if Phone.visible then emit("phone:back", {}) cancelEvent() end
@@ -294,6 +294,6 @@ bindKey(HRP.Config.ui.toggleDevToolsKey, "down", function()
 end)
 
 addEventHandler("onClientResourceStop", resourceRoot, function()
-    stopSelfieCamera()
+    stopCamera()
     if Phone.selfieSource and isElement(Phone.selfieSource) then destroyElement(Phone.selfieSource) end
 end)
