@@ -17,6 +17,7 @@ Inv.currentWeight = 0
 Inv.maxWeight = 35
 Inv.nearDrop = nil
 Inv.action = nil
+Inv.actionScroll = 0
 Inv.prompt = nil
 Inv.editing = false
 Inv.editText = ""
@@ -74,8 +75,25 @@ end
 local function rowsVisible() local s = scale() return math.max(6, math.floor((Inv.h - 210 * s) / (Inv.rowH or 30))) end
 local function normalize(list) list = list or filtered() local rows = rowsVisible() if #list == 0 then Inv.selected, Inv.scroll = 1, 0 return end Inv.selected = clamp(Inv.selected, 1, #list) Inv.scroll = clamp(Inv.scroll, 0, math.max(0, #list - rows)) if Inv.selected < Inv.scroll + 1 then Inv.scroll = Inv.selected - 1 end if Inv.selected > Inv.scroll + rows then Inv.scroll = Inv.selected - rows end end
 local function selectedItem() local list = filtered() normalize(list) return list[Inv.selected], list end
-local function closeAction() Inv.action, Inv.prompt, Inv.editing, Inv.editText, Inv.actionBounds = nil, nil, false, "", {} end
+local function closeAction() Inv.action, Inv.actionScroll, Inv.prompt, Inv.editing, Inv.editText, Inv.actionBounds = nil, 0, nil, false, "", {} end
 local function add(actions, id, label, opts) opts = opts or {} opts.id = id opts.label = label actions[#actions + 1] = opts end
+
+local function actionRowsVisible(s, y, h, yy)
+    local bh = 28 * s
+    return math.max(1, math.floor(((y + h - 8 * s) - yy) / (bh + 6 * s)))
+end
+
+local function normalizeActionScroll()
+    local action = Inv.action
+    if not action then Inv.actionScroll = 0 return end
+    local count = #(action.actions or {})
+    local visible = tonumber(action.visibleActionRows) or count
+    local selected = clamp(action.selected or 1, 1, math.max(1, count))
+    action.selected = selected
+    Inv.actionScroll = clamp(Inv.actionScroll or 0, 0, math.max(0, count - visible))
+    if selected < Inv.actionScroll + 1 then Inv.actionScroll = selected - 1 end
+    if selected > Inv.actionScroll + visible then Inv.actionScroll = selected - visible end
+end
 
 local function notebookData(item)
     local metadata = type(item and item.metadata) == "table" and item.metadata or {}
@@ -180,11 +198,11 @@ local function makeAction(item)
         actions = {
             { id = "notebook_edit", label = "Edytuj strone" },
             { id = "notebook_save_page", label = "Zapisz strone" },
+            { id = "notebook_tear_page", label = "Wyrwij aktualna strone" },
+            { id = "notebook_new_page", label = "Dodaj nowa strone" },
             { id = "notebook_prev", label = "Poprzednia strona" },
             { id = "notebook_next", label = "Nastepna strona" },
-            { id = "notebook_new_page", label = "Dodaj strone" },
             { id = "notebook_toggle_pin", label = "Przypnij / odepnij" },
-            { id = "notebook_tear_page", label = "Wyrwij strone" },
             { id = "notebook_delete_page", label = "Usun strone" },
             { id = "item_give", label = "Przekaz", prompt = "amount", max = 1 },
             { id = "item_drop", label = "Wyrzuc", prompt = "amount", max = 1 }
@@ -379,7 +397,13 @@ local function drawRight(s, item)
         local rows = { { item.itemId == "cash" and "Kwota" or "Ilosc", item.itemId == "cash" and money(item.quantity) or ("x" .. tostring(item.quantity or 1)) }, { "Waga", kg(item.totalWeight) }, { "Jakosc", tostring(item.quality or 100) .. "%" }, { "Stan", tostring(item.state or "normal") }, { "UID", item.virtual and "system" or ("#" .. tostring(item.uid or "-")) } }
         for _, row in ipairs(rows) do text(row[1], x+18*s, yy, x+120*s, yy+20*s, rgba("muted",220), 0.70*s, "default-bold") text(row[2], x+120*s, yy, x+w-18*s, yy+20*s, rgba("text",232), 0.70*s, "default-bold", "right") yy = yy + 25*s end
         text("Opis", x+18*s, yy+10*s, x+w-18*s, yy+30*s, rgba("muted",230), 0.68*s, "default-bold")
-        text(item.description or "Brak opisu.", x+18*s, yy+34*s, x+w-18*s, y+h-70*s, rgba("text",225), 0.72*s, "default", "left", "top", true, true)
+        local desc = item.description or "Brak opisu."
+        if item.itemId == "notebook" then
+            desc = desc .. "\n\nENTER: edycja stron, wyrwanie kartki, przekazanie albo wyrzucenie notesu."
+        elseif item.itemId == "note_page" then
+            desc = desc .. "\n\nENTER: przeczytaj, przyklej, zostaw za wycieraczka, przekaz, wyrzuc albo zniszcz."
+        end
+        text(desc, x+18*s, yy+34*s, x+w-18*s, y+h-70*s, rgba("text",225), 0.72*s, "default", "left", "top", true, true)
         text("ENTER", x+18*s, y+h-48*s, x+92*s, y+h-26*s, rgba("accent",230), 0.72*s, "default-bold")
         text("Zarzadzaj przedmiotem", x+96*s, y+h-48*s, x+w-18*s, y+h-26*s, rgba("text",220), 0.72*s, "default-bold")
         return
@@ -398,7 +422,16 @@ local function drawRight(s, item)
     else yy = yy + 12*s end
     yy = drawPrompt(s, x, y, w, yy)
     if Inv.prompt then return end
-    for i, btn in ipairs(a.actions or {}) do
+    local actions = a.actions or {}
+    a.visibleActionRows = actionRowsVisible(s, y, h, yy)
+    normalizeActionScroll()
+    local first = (Inv.actionScroll or 0) + 1
+    local last = math.min(#actions, first + (a.visibleActionRows or #actions) - 1)
+    if #actions > (a.visibleActionRows or #actions) then
+        text("Akcje " .. tostring(first) .. "-" .. tostring(last) .. "/" .. tostring(#actions) .. "  (strzalki / rolka)", x+18*s, yy-16*s, x+w-18*s, yy, rgba("muted",210), 0.56*s, "default-bold", "right")
+    end
+    for i = first, last do
+        local btn = actions[i]
         local bh = 28*s
         if yy + bh > y + h - 8*s then break end
         dxDrawRectangle(x+18*s, yy, w-36*s, bh, i == (a.selected or 1) and rgba("active",235) or rgba("panel",205), true)
@@ -523,7 +556,25 @@ local function handleKey(button, press)
     if button == "e" and Inv.nearDrop and not Inv.visible then if Inv.nearDrop.cash == true or Inv.nearDrop.itemId == "cash" then triggerServerEvent("HeavyRPG:Inventory:pickupCashDrop", resourceRoot, Inv.nearDrop.id) else triggerServerEvent("HeavyRPG:Inventory:pickupDrop", resourceRoot, Inv.nearDrop.id) end cancelEvent() return end
     if button == tostring(cfg().key or "i") then if not canToggle() then return end setVisible(not Inv.visible) cancelEvent() return end
     if not Inv.visible then return end
-    if Inv.action then local acts = Inv.action.actions or {} if button == "escape" then closeAction() cancelEvent() elseif button == "arrow_u" then Inv.action.selected = clamp((Inv.action.selected or 1)-1, 1, math.max(1,#acts)) cancelEvent() elseif button == "arrow_d" then Inv.action.selected = clamp((Inv.action.selected or 1)+1, 1, math.max(1,#acts)) cancelEvent() elseif button == "enter" then runAction(acts[Inv.action.selected or 1]) cancelEvent() end return end
+    if Inv.action then
+        local acts = Inv.action.actions or {}
+        if button == "escape" then
+            closeAction()
+            cancelEvent()
+        elseif button == "arrow_u" or button == "mouse_wheel_up" then
+            Inv.action.selected = clamp((Inv.action.selected or 1) - 1, 1, math.max(1, #acts))
+            normalizeActionScroll()
+            cancelEvent()
+        elseif button == "arrow_d" or button == "mouse_wheel_down" then
+            Inv.action.selected = clamp((Inv.action.selected or 1) + 1, 1, math.max(1, #acts))
+            normalizeActionScroll()
+            cancelEvent()
+        elseif button == "enter" then
+            runAction(acts[Inv.action.selected or 1])
+            cancelEvent()
+        end
+        return
+    end
     if button == "escape" then setVisible(false) cancelEvent() elseif button == "arrow_u" then move(-1) cancelEvent() elseif button == "arrow_d" then move(1) cancelEvent() elseif button == "mouse_wheel_up" then move(-3) cancelEvent() elseif button == "mouse_wheel_down" then move(3) cancelEvent() elseif button == "tab" then nextCategory() cancelEvent() elseif button == "enter" then local item = selectedItem() Inv.action = makeAction(item) if Inv.action then Inv.action.selected = 1 Inv.editText = Inv.action.text or "" Inv.editing = false end cancelEvent() end
 end
 
