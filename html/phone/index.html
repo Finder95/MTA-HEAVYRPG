@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HeavyRPG Phone</title>
-    <link rel="stylesheet" href="style.css?v=20260621-2" />
+    <link rel="stylesheet" href="style.css?v=20260621-3" />
 </head>
 <body>
     <main class="phone-shell">
@@ -16,7 +16,7 @@
             <div class="screen" id="screen">
                 <header class="statusbar">
                     <span id="clock">21:37</span>
-                    <span class="status-icons">LTE 82%</span>
+                    <span class="status-icons" id="statusIcons">LTE 82%</span>
                 </header>
 
                 <section class="view active" data-view="home">
@@ -29,8 +29,9 @@
                         <button class="app app-sms" data-open="sms"><span>SMS</span><small>SMS</small></button>
                         <button class="app app-contacts" data-open="contacts"><span>OS</span><small>Kontakty</small></button>
                         <button class="app app-browser" data-open="browser"><span>WWW</span><small>Przegladarka</small></button>
+                        <button class="app app-camera" data-open="camera"><span>CAM</span><small>Aparat</small></button>
+                        <button class="app app-settings" data-open="settings"><span>SET</span><small>Ustawienia</small></button>
                     </div>
-                    <div class="theme-row" id="themeRow" aria-label="Motywy telefonu"></div>
                 </section>
 
                 <section class="view" data-view="dialer">
@@ -57,6 +58,28 @@
                     <button class="primary" id="addContact">Dodaj kontakt</button>
                 </section>
 
+                <section class="view" data-view="camera">
+                    <h1>Aparat</h1>
+                    <div class="camera-preview">
+                        <div class="camera-glass"></div>
+                        <span>SELFIE</span>
+                    </div>
+                    <button class="shutter" id="selfieButton" aria-label="Zrob selfie"></button>
+                    <p class="hint" id="selfieStatus">Ustaw kadr w grze i kliknij spust migawki.</p>
+                </section>
+
+                <section class="view" data-view="settings">
+                    <h1>Ustawienia</h1>
+                    <div class="settings-list">
+                        <label class="setting-row"><span>Glosnosc</span><input id="volumeRange" type="range" min="0" max="100" step="5" /></label>
+                        <label class="setting-row"><span>Dzwonek</span><select id="ringtoneSelect"><option value="classic">Classic</option><option value="soft">Soft</option><option value="street">Street</option></select></label>
+                        <label class="setting-row"><span>Tryb samolotowy</span><input id="airplaneToggle" type="checkbox" /></label>
+                        <label class="setting-row"><span>Animacje</span><input id="animationsToggle" type="checkbox" /></label>
+                    </div>
+                    <h2>Tapeta</h2>
+                    <div class="theme-grid" id="themeRow" aria-label="Motywy telefonu"></div>
+                </section>
+
                 <section class="view" data-view="browser">
                     <h1>Przegladarka</h1>
                     <div class="browserbar">heavy://city</div>
@@ -72,6 +95,8 @@
                     <button class="recent" data-open="dialer">Telefon</button>
                     <button class="recent" data-open="sms">SMS</button>
                     <button class="recent" data-open="contacts">Kontakty</button>
+                    <button class="recent" data-open="camera">Aparat</button>
+                    <button class="recent" data-open="settings">Ustawienia</button>
                     <button class="recent" data-open="browser">Przegladarka</button>
                 </section>
             </div>
@@ -82,6 +107,6 @@
             </nav>
         </section>
     </main>
-    <script src="app.js?v=20260621-2"></script>
+    <script src="app.js?v=20260621-3"></script>
 </body>
 </html>
