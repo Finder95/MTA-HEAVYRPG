@@ -21,6 +21,7 @@
     function emit(name, payload) { if (window.mta && typeof window.mta.triggerEvent === 'function') window.mta.triggerEvent(name, JSON.stringify(payload || {})); else console.log('[phone]', name, payload); }
     function digits(value) { return String(value || '').replace(/\D/g, '').slice(0, 12); }
     function pad(value) { value = String(value || 0); return value.length < 2 ? '0' + value : value; }
+    function closePhone() { emit('HeavyRPG:UI:phone:cameraStop', {}); emit('HeavyRPG:UI:phone:close', {}); }
     function escapeHtml(value) {
         return String(value || '').replace(/[&<>"']/g, function (ch) {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
@@ -40,13 +41,18 @@
 
     function setView(view, push) {
         view = view || 'home';
+        var previous = state.view;
         state.view = view;
         $$('.view').forEach(function (el) { el.classList.toggle('active', el.dataset.view === view); });
+        if (previous !== 'camera' && view === 'camera') emit('HeavyRPG:UI:phone:cameraStart', {});
+        if (previous === 'camera' && view !== 'camera') emit('HeavyRPG:UI:phone:cameraStop', {});
         if (push !== false && state.history[state.history.length - 1] !== view) state.history.push(view);
     }
 
     function goBack() {
-        if (state.history.length > 1) state.history.pop();
+        if (state.history.length <= 1 || state.view === 'home') { closePhone(); return; }
+        if (state.view === 'camera') emit('HeavyRPG:UI:phone:cameraStop', {});
+        state.history.pop();
         setView(state.history[state.history.length - 1] || 'home', false);
     }
 
@@ -185,13 +191,14 @@
         $('#contactNumber').value = '';
     };
     $('#selfieButton').onclick = function () {
-        $('#selfieStatus').textContent = 'Robie selfie...';
+        $('#selfieStatus').textContent = 'Ustawiam kadr i chowam UI telefonu...';
         emit('HeavyRPG:UI:phone:selfie', {});
     };
     $('#backButton').onclick = goBack;
     $('#homeButton').onclick = function () { setView('home'); };
     $('#recentButton').onclick = function () { setView('recent'); };
-    $('#powerButton').onclick = function () { emit('HeavyRPG:UI:phone:close', {}); };
+    $('#powerButton').onclick = closePhone;
+    $('#closeButton').onclick = closePhone;
     $('#volumeButton').onclick = function () { emit('HeavyRPG:UI:phone:request', {}); };
 
     window.HeavyRPGPhone = {
