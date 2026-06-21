@@ -14,7 +14,7 @@ HRP.Config = {
     },
 
     modules = {
-        order = { "auth", "character", "spawn", "survival", "bank", "payday", "inventory" }
+        order = { "auth", "character", "spawn", "survival", "bank", "payday", "phone", "inventory" }
     },
 
     auth = {
@@ -199,7 +199,7 @@ HRP.Config = {
                 stackable = false,
                 usable = false,
                 flags = "device",
-                description = "Stary, poobijany telefon. W przyszlosci posluzy do kontaktow, SMS i aplikacji RP."
+                description = "Telefon postaci z numerem, kontaktami i podstawowym systemem SMS."
             },
             water_bottle = {
                 label = "Butelka wody",
@@ -208,6 +208,7 @@ HRP.Config = {
                 stackable = true,
                 usable = true,
                 consume = true,
+                sellPrice = 8,
                 effect = { needs = { thirst = 26 } },
                 useMessage = "Wypiles butelke wody.",
                 description = "Zwykla woda mineralna. Najprostszy sposob na pragnienie po dluzszym bieganiu."
@@ -219,6 +220,7 @@ HRP.Config = {
                 stackable = true,
                 usable = true,
                 consume = true,
+                sellPrice = 12,
                 effect = { needs = { hunger = 24, energy = 4 } },
                 useMessage = "Zjadles kanapke.",
                 description = "Prosty posilek na szybko. Nie jest luksusem, ale trzyma gracza przy zyciu."
@@ -230,6 +232,7 @@ HRP.Config = {
                 stackable = true,
                 usable = true,
                 consume = true,
+                sellPrice = 25,
                 effect = { health = 18 },
                 useMessage = "Opatrzyles rany bandazem.",
                 description = "Podstawowy opatrunek. Pomaga przy lekkich obrazeniach, ale nie zastapi medyka."
@@ -241,6 +244,7 @@ HRP.Config = {
                 stackable = true,
                 usable = true,
                 consume = true,
+                sellPrice = 40,
                 effect = { health = 6, needs = { stress = -12 } },
                 useMessage = "Wziales tabletki przeciwbolowe.",
                 description = "Zmniejszaja bol i stres, ale nie powinny byc traktowane jak pelne leczenie."
@@ -252,6 +256,7 @@ HRP.Config = {
                 stackable = true,
                 usable = true,
                 consume = true,
+                sellPrice = 18,
                 effect = { needs = { stress = -8, hygiene = -2 } },
                 useMessage = "Odpaliles papierosa.",
                 description = "Drobny klimatyczny item RP. Uspokaja, ale psuje higiene."
@@ -262,6 +267,7 @@ HRP.Config = {
                 weight = 0.04,
                 stackable = true,
                 usable = false,
+                sellPrice = 80,
                 flags = "contraband,tool",
                 description = "Nielegalne narzedzie pod przyszle systemy wlaman, drzwi i pojazdow."
             },
@@ -271,6 +277,7 @@ HRP.Config = {
                 weight = 0.12,
                 stackable = false,
                 usable = false,
+                sellPrice = 6,
                 description = "Zniszczony notes na kontakty, dlugi, adresy i prywatne notatki postaci."
             }
         },
