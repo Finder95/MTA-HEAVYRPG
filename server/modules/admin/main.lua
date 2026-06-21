@@ -14,6 +14,25 @@ local LEVELS = {
     [100] = "Developer"
 }
 
+local ACTION_LEVELS = {
+    heal = 1,
+    setHealth = 1,
+    goto = 1,
+    armor = 2,
+    setArmor = 2,
+    freeze = 2,
+    bring = 2,
+    slap = 2,
+    fixVehicle = 2,
+    giveCash = 3,
+    takeCash = 3,
+    kick = 3,
+    announce = 3,
+    setDimension = 3,
+    setInterior = 3,
+    setAdmin = 100
+}
+
 local function now() return HRP.Utils and HRP.Utils.now and HRP.Utils.now() or getRealTime().timestamp end
 local function notify(player, message, r, g, b) if isElement(player) then outputChatBox("[APANEL] " .. tostring(message), player, r or 210, g or 198, b or 164) end end
 local function accountId(player) return (HRP.Auth and HRP.Auth.Session and HRP.Auth.Session.getAccountId(player)) or tonumber(getElementData(player, "HRP:account:id")) or tonumber(getElementData(player, "hrp:account:id")) end
@@ -70,6 +89,7 @@ function Admin.has(player, required)
 end
 
 local function audit(player, action, target, detail)
+    if not HRP.DB or not HRP.DB.exec then return end
     HRP.DB.exec([[INSERT INTO admin_audit(account_id, character_id, admin_name, action, target, detail_json, created_at)
         VALUES(?, ?, ?, ?, ?, ?, ?)]], {
             accountId(player), characterId(player), characterName(player), tostring(action), tostring(target or ""), encode(detail or {}), now()
@@ -98,10 +118,15 @@ local function findPlayerBySerial(serial)
     return nil
 end
 
+local function boolText(value)
+    return value and "tak" or "nie"
+end
+
 local function onlinePlayers()
     local out = {}
     for _, player in ipairs(getElementsByType("player")) do
         local x, y, z = getElementPosition(player)
+        local vehicle = getPedOccupiedVehicle(player)
         out[#out + 1] = {
             serial = getPlayerSerial(player),
             name = getPlayerName(player),
@@ -112,10 +137,13 @@ local function onlinePlayers()
             adminRole = tostring(getElementData(player, "hrp:admin:role") or roleName(Admin.getLevel(player))),
             health = math.floor(getElementHealth(player) or 0),
             armor = math.floor(getPedArmor(player) or 0),
+            skin = getElementModel(player),
             money = getPlayerMoney(player) or 0,
             ping = getPlayerPing(player) or 0,
             dimension = getElementDimension(player) or 0,
             interior = getElementInterior(player) or 0,
+            frozen = isElementFrozen(player),
+            vehicle = vehicle and getVehicleName(vehicle) or false,
             position = { x = math.floor(x * 100) / 100, y = math.floor(y * 100) / 100, z = math.floor(z * 100) / 100 }
         }
     end
@@ -128,7 +156,7 @@ local function sendData(player)
         self = { level = Admin.getLevel(player), role = tostring(getElementData(player, "hrp:admin:role") or roleName(Admin.getLevel(player))), name = characterName(player) },
         levels = LEVELS,
         players = onlinePlayers(),
-        stats = { online = #getElementsByType("player"), accounts = 0, characters = 0, notes = 0 },
+        stats = { online = #getElementsByType("player"), accounts = 0, characters = 0, notes = 0, staff = 0 },
         audit = {}
     }
 
@@ -136,11 +164,14 @@ local function sendData(player)
         payload.stats.accounts = tonumber(rows and rows[1] and rows[1].c) or 0
         HRP.DB.query([[SELECT COUNT(*) AS c FROM characters]], {}, function(rows2)
             payload.stats.characters = tonumber(rows2 and rows2[1] and rows2[1].c) or 0
-            HRP.DB.query([[SELECT COUNT(*) AS c FROM world_placed_notes]], {}, function(rows3)
-                payload.stats.notes = tonumber(rows3 and rows3[1] and rows3[1].c) or 0
-                HRP.DB.query([[SELECT * FROM admin_audit ORDER BY created_at DESC LIMIT 25]], {}, function(auditRows)
-                    payload.audit = type(auditRows) == "table" and auditRows or {}
-                    if isElement(player) then triggerClientEvent(player, "HeavyRPG:Admin:data", resourceRoot, payload) end
+            HRP.DB.query([[SELECT COUNT(*) AS c FROM admin_members WHERE level > 0]], {}, function(rows3)
+                payload.stats.staff = tonumber(rows3 and rows3[1] and rows3[1].c) or 0
+                HRP.DB.query([[SELECT COUNT(*) AS c FROM world_placed_notes]], {}, function(rows4)
+                    payload.stats.notes = tonumber(rows4 and rows4[1] and rows4[1].c) or 0
+                    HRP.DB.query([[SELECT * FROM admin_audit ORDER BY created_at DESC LIMIT 40]], {}, function(auditRows)
+                        payload.audit = type(auditRows) == "table" and auditRows or {}
+                        if isElement(player) then triggerClientEvent(player, "HeavyRPG:Admin:data", resourceRoot, payload) end
+                    end)
                 end)
             end)
         end)
@@ -174,22 +205,55 @@ local function performAction(player, action, data)
     if not Admin.has(player, 1) then return false, "Brak uprawnien." end
     data = type(data) == "table" and data or {}
     action = tostring(action or "")
-    local target = findPlayerBySerial(data.serial)
-    local required = ({ heal = 1, armor = 2, freeze = 2, goto = 1, bring = 2, giveCash = 3, takeCash = 3, kick = 3, setAdmin = 100 })[action] or 100
+    local required = ACTION_LEVELS[action] or 100
     if not Admin.has(player, required) then return false, "Za niski poziom admina." end
-    if action ~= "setAdmin" and not target then return false, "Gracz offline albo nie istnieje." end
 
-    if action == "heal" then setElementHealth(target, 100)
-    elseif action == "armor" then setPedArmor(target, 100)
-    elseif action == "freeze" then setElementFrozen(target, not isElementFrozen(target))
-    elseif action == "goto" then local x, y, z = getElementPosition(target) setElementPosition(player, x + 1.2, y, z) setElementInterior(player, getElementInterior(target)) setElementDimension(player, getElementDimension(target))
-    elseif action == "bring" then local x, y, z = getElementPosition(player) setElementPosition(target, x + 1.2, y, z) setElementInterior(target, getElementInterior(player)) setElementDimension(target, getElementDimension(player))
-    elseif action == "giveCash" then givePlayerMoney(target, clampInt(data.amount, 1, 1000000))
-    elseif action == "takeCash" then takePlayerMoney(target, clampInt(data.amount, 1, 1000000))
-    elseif action == "kick" then kickPlayer(target, player, tostring(data.reason or "Decyzja administracji."))
+    local target = findPlayerBySerial(data.serial)
+    if action ~= "announce" and not target then return false, "Gracz offline albo nie istnieje." end
+
+    if action == "heal" then
+        setElementHealth(target, 100)
+    elseif action == "setHealth" then
+        setElementHealth(target, clampInt(data.amount, 1, 100))
+    elseif action == "armor" then
+        setPedArmor(target, 100)
+    elseif action == "setArmor" then
+        setPedArmor(target, clampInt(data.amount, 0, 100))
+    elseif action == "freeze" then
+        setElementFrozen(target, not isElementFrozen(target))
+    elseif action == "goto" then
+        local x, y, z = getElementPosition(target)
+        setElementInterior(player, getElementInterior(target))
+        setElementDimension(player, getElementDimension(target))
+        setElementPosition(player, x + 1.2, y, z)
+    elseif action == "bring" then
+        local x, y, z = getElementPosition(player)
+        setElementInterior(target, getElementInterior(player))
+        setElementDimension(target, getElementDimension(player))
+        setElementPosition(target, x + 1.2, y, z)
+    elseif action == "slap" then
+        local hp = math.max(1, (getElementHealth(target) or 100) - clampInt(data.amount, 1, 95))
+        setElementHealth(target, hp)
+        setElementVelocity(target, 0, 0, 0.22)
+    elseif action == "fixVehicle" then
+        local vehicle = getPedOccupiedVehicle(target)
+        if not vehicle then return false, "Gracz nie siedzi w pojezdzie." end
+        fixVehicle(vehicle)
+    elseif action == "giveCash" then
+        givePlayerMoney(target, clampInt(data.amount, 1, 1000000))
+    elseif action == "takeCash" then
+        takePlayerMoney(target, clampInt(data.amount, 1, 1000000))
+    elseif action == "kick" then
+        kickPlayer(target, player, tostring(data.reason or "Decyzja administracji."))
+    elseif action == "announce" then
+        local message = tostring(data.message or "")
+        if #message < 3 then return false, "Wpisz tresc ogloszenia." end
+        outputChatBox("[ADMIN] " .. message, root, 230, 210, 150)
+    elseif action == "setDimension" then
+        setElementDimension(target, clampInt(data.amount, 0, 65535))
+    elseif action == "setInterior" then
+        setElementInterior(target, clampInt(data.amount, 0, 255))
     elseif action == "setAdmin" then
-        target = findPlayerBySerial(data.serial)
-        if not target then return false, "Gracz musi byc online, zeby ustawic range z panelu." end
         local level = clampInt(data.level, 0, 100)
         local aid = accountId(target)
         if not aid then return false, "Gracz nie jest zalogowany." end
@@ -199,9 +263,12 @@ local function performAction(player, action, data)
         HRP.DB.exec([[INSERT OR REPLACE INTO admin_members(account_id, character_id, level, role, notes, added_by_account_id, created_at, updated_at)
             VALUES(?, ?, ?, ?, '', ?, ?, ?)]], { aid, cid, level, roleName(level), accountId(player), ts, ts })
         setCachedLevel(target, level, roleName(level))
-    else return false, "Nieznana akcja." end
+    else
+        return false, "Nieznana akcja."
+    end
 
-    audit(player, action, target and getPlayerSerial(target) or tostring(data.serial or ""), data)
+    audit(player, action, target and getPlayerSerial(target) or tostring(data.serial or "global"), data)
+    if target and target ~= player then notify(target, "Administrator wykonal akcje: " .. action .. ".", 210, 198, 164) end
     return true, "Wykonano akcje: " .. action .. "."
 end
 
