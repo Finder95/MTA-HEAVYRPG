@@ -66,6 +66,12 @@ local function ensurePreviewSource()
     return Phone.previewSource ~= false and Phone.previewSource ~= nil
 end
 
+local function updateCameraPreviewSource()
+    if not Phone.visible or Phone.renderPaused or not Phone.cameraMode then return false end
+    if not ensurePreviewSource() then return false end
+    return dxUpdateScreenSource(Phone.previewSource, true) == true
+end
+
 local function previewRect()
     local deviceW, deviceH = Phone.w * 0.94, Phone.h * 0.98
     local deviceX, deviceY = Phone.x + (Phone.w - deviceW) / 2, Phone.y + (Phone.h - deviceH) / 2
@@ -80,9 +86,7 @@ local function previewRect()
 end
 
 local function drawCameraPreview()
-    if not Phone.visible or Phone.renderPaused or not Phone.cameraMode then return end
-    if not ensurePreviewSource() then return end
-    dxUpdateScreenSource(Phone.previewSource, true)
+    if not Phone.previewSource or not isElement(Phone.previewSource) then return end
     local x, y, w, h = previewRect()
     dxDrawImage(x, y, w, h, Phone.previewSource, 0, 0, 0, tocolor(255, 255, 255, 245), true)
     dxDrawRectangle(x, y, w, 1, tocolor(245, 245, 235, 70), true)
@@ -95,9 +99,9 @@ end
 
 local function renderPhone()
     if Phone.visible and not Phone.renderPaused and Phone.browser then
-        if Phone.cameraMode then drawCameraPreview() end
+        local hasPreview = updateCameraPreviewSource()
         dxDrawImage(Phone.x, Phone.y, Phone.w, Phone.h, Phone.browser, 0, 0, 0, tocolor(255, 255, 255, 255), true)
-        if Phone.cameraMode then drawCameraPreview() end
+        if hasPreview then drawCameraPreview() end
     end
 end
 
