@@ -279,6 +279,16 @@ HRP.Config = {
                 usable = false,
                 sellPrice = 6,
                 description = "Zniszczony notes na kontakty, dlugi, adresy i prywatne notatki postaci."
+            },
+            note_page = {
+                label = "Wyrwana kartka",
+                category = "misc",
+                weight = 0.01,
+                stackable = false,
+                usable = false,
+                sellPrice = 1,
+                flags = "paper,note",
+                description = "Pojedyncza kartka wyrwana z notesu. Moze zawierac wazna informacje, zostac przekazana, wyrzucona albo przyklejona w swiecie."
             }
         },
         palette = {
