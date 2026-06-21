@@ -136,7 +136,7 @@ addEventHandler("HeavyRPG:Scoreboard:update", resourceRoot, function(rows)
     Scoreboard.rows = type(rows) == "table" and rows or {}
 end)
 
-addEventHandler("onClientKey", root, handleTabKey, true, "high+1000")
+addEventHandler("onClientKey", root, handleTabKey, true, "high+10")
 addEventHandler("onClientResourceStop", resourceRoot, function()
     setVisible(false)
 end)
