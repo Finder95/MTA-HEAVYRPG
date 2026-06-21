@@ -87,14 +87,14 @@ addEventHandler("HeavyRPG:Inventory:nearPlacedNote", resourceRoot, function(stat
     elseif not state then
         vehicleNote = nil
     end
-end)
+end, false, "low")
 
 addEvent("HeavyRPG:Inventory:placedNotePanel", true)
 addEventHandler("HeavyRPG:Inventory:placedNotePanel", resourceRoot, function(payload)
     if isVehicleNote(payload) and Inv.action then
         Inv.action.title = "Kartka za wycieraczka"
     end
-end)
+end, false, "low")
 
 addEventHandler("onClientResourceStart", resourceRoot, function()
     if not renderAttached then
