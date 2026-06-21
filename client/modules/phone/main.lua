@@ -5,6 +5,7 @@ HRP.ClientPhone = HRP.ClientPhone or {
     browser = nil,
     ready = false,
     visible = false,
+    renderPaused = false,
     pendingPayload = nil,
     sx = 0,
     sy = 0,
@@ -14,7 +15,8 @@ HRP.ClientPhone = HRP.ClientPhone or {
     h = 780,
     lastCursorX = 0,
     lastCursorY = 0,
-    selfieSource = nil
+    selfieSource = nil,
+    cameraMode = false
 }
 
 local Phone = HRP.ClientPhone
@@ -48,13 +50,13 @@ local function toBrowserPoint(absX, absY)
 end
 
 local function renderPhone()
-    if Phone.visible and Phone.browser then
+    if Phone.visible and not Phone.renderPaused and Phone.browser then
         dxDrawImage(Phone.x, Phone.y, Phone.w, Phone.h, Phone.browser, 0, 0, 0, tocolor(255, 255, 255, 255), true)
     end
 end
 
 local function cursorMove(_, _, absX, absY)
-    if not Phone.visible or not Phone.browser then return end
+    if not Phone.visible or Phone.renderPaused or not Phone.browser then return end
     Phone.lastCursorX, Phone.lastCursorY = absX, absY
     if not isInside(absX, absY) then return end
     local bx, by = toBrowserPoint(absX, absY)
@@ -62,7 +64,7 @@ local function cursorMove(_, _, absX, absY)
 end
 
 local function cursorClick(button, state, absX, absY)
-    if not Phone.visible or not Phone.browser then return end
+    if not Phone.visible or Phone.renderPaused or not Phone.browser then return end
     if button ~= "left" and button ~= "right" and button ~= "middle" then return end
     if not isInside(absX, absY) then return end
     if state == "down" then focusBrowser(Phone.browser) end
@@ -72,7 +74,7 @@ local function cursorClick(button, state, absX, absY)
 end
 
 local function mouseWheel(key)
-    if not Phone.visible or not Phone.browser then return end
+    if not Phone.visible or Phone.renderPaused or not Phone.browser then return end
     if not isInside(Phone.lastCursorX, Phone.lastCursorY) then return end
     injectBrowserMouseWheel(Phone.browser, key == "mouse_wheel_up" and 1 or -1, 0)
 end
@@ -87,10 +89,39 @@ local function emit(name, detail)
     return call("window.HeavyRPGPhone && window.HeavyRPGPhone.receive", { name = name, detail = detail or {} })
 end
 
+local function selfieStatus(ok, message, path)
+    emit("phone:selfieStatus", { ok = ok == true, message = tostring(message or ""), path = tostring(path or "") })
+end
+
+local function stopSelfieCamera()
+    if not Phone.cameraMode then return end
+    Phone.cameraMode = false
+    setCameraTarget(localPlayer)
+end
+
+local function startSelfieCamera()
+    if not isElement(localPlayer) then return end
+    local px, py, pz = getElementPosition(localPlayer)
+    local _, _, rz = getElementRotation(localPlayer)
+    local rad = math.rad(rz or 0)
+    local forwardX = -math.sin(rad)
+    local forwardY = math.cos(rad)
+    local camX = px + forwardX * 2.25
+    local camY = py + forwardY * 2.25
+    local camZ = pz + 0.92
+    local lookX = px
+    local lookY = py
+    local lookZ = pz + 0.72
+    setCameraMatrix(camX, camY, camZ, lookX, lookY, lookZ, 0, 65)
+    Phone.cameraMode = true
+    selfieStatus(true, "Tryb selfie aktywny. Ustaw postac i kliknij migawke.")
+end
+
 local function setVisible(state)
     state = state == true
     if Phone.visible == state then return end
     Phone.visible = state
+    Phone.renderPaused = false
     showCursor(state)
     if Phone.browser then focusBrowser(state and Phone.browser or nil) end
     if state then
@@ -133,32 +164,38 @@ local function openPhone(payload)
 end
 
 local function closePhone()
+    stopSelfieCamera()
     setVisible(false)
 end
 
-local function selfieStatus(ok, message, path)
-    emit("phone:selfieStatus", { ok = ok == true, message = tostring(message or ""), path = tostring(path or "") })
-end
-
-local function takeSelfie()
+local function captureSelfieNow()
     local sx, sy = guiGetScreenSize()
-    if not Phone.selfieSource then Phone.selfieSource = dxCreateScreenSource(sx, sy) end
-    if not Phone.selfieSource then selfieStatus(false, "Aparat nie mogl utworzyc zrodla obrazu.") return end
+    if Phone.selfieSource and isElement(Phone.selfieSource) then destroyElement(Phone.selfieSource) end
+    Phone.selfieSource = dxCreateScreenSource(sx, sy)
+    if not Phone.selfieSource then Phone.renderPaused = false selfieStatus(false, "Aparat nie mogl utworzyc zrodla obrazu.") return end
 
     dxUpdateScreenSource(Phone.selfieSource, true)
     local pixels = dxGetTexturePixels(Phone.selfieSource)
-    if not pixels then selfieStatus(false, "Aparat nie mogl pobrac obrazu. Sprawdz ustawienia screen upload.") return end
+    if not pixels then Phone.renderPaused = false selfieStatus(false, "Aparat nie mogl pobrac obrazu. Sprawdz ustawienia screen upload.") return end
 
     local jpeg = dxConvertPixels(pixels, "jpeg", 88)
-    if not jpeg then selfieStatus(false, "Aparat nie mogl zapisac JPEG.") return end
+    if not jpeg then Phone.renderPaused = false selfieStatus(false, "Aparat nie mogl zapisac JPEG.") return end
 
     local timestamp = getRealTime().timestamp or getTickCount()
     local path = "phone_selfie_" .. tostring(timestamp) .. "_" .. tostring(getTickCount()) .. ".jpg"
     local file = fileCreate(path)
-    if not file then selfieStatus(false, "Nie udalo sie utworzyc pliku selfie.") return end
+    if not file then Phone.renderPaused = false selfieStatus(false, "Nie udalo sie utworzyc pliku selfie.") return end
     fileWrite(file, jpeg)
     fileClose(file)
+    Phone.renderPaused = false
     selfieStatus(true, "Selfie zapisane: " .. path, path)
+end
+
+local function takeSelfie()
+    if not Phone.cameraMode then startSelfieCamera() end
+    Phone.renderPaused = true
+    selfieStatus(true, "Chowam telefon i robie zdjecie...")
+    setTimer(captureSelfieNow, 180, 1)
 end
 
 addEvent("HeavyRPG:Phone:open", true)
@@ -196,6 +233,12 @@ addEventHandler("HeavyRPG:UI:phone:call", root, function(jsonPayload)
     triggerServerEvent("HeavyRPG:Phone:call", resourceRoot, decodePayload(jsonPayload))
 end)
 
+addEvent("HeavyRPG:UI:phone:cameraStart", true)
+addEventHandler("HeavyRPG:UI:phone:cameraStart", root, startSelfieCamera)
+
+addEvent("HeavyRPG:UI:phone:cameraStop", true)
+addEventHandler("HeavyRPG:UI:phone:cameraStop", root, stopSelfieCamera)
+
 addEvent("HeavyRPG:UI:phone:selfie", true)
 addEventHandler("HeavyRPG:UI:phone:selfie", root, takeSelfie)
 
@@ -212,5 +255,6 @@ bindKey(HRP.Config.ui.toggleDevToolsKey, "down", function()
 end)
 
 addEventHandler("onClientResourceStop", resourceRoot, function()
+    stopSelfieCamera()
     if Phone.selfieSource and isElement(Phone.selfieSource) then destroyElement(Phone.selfieSource) end
 end)
