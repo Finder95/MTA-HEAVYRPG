@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HeavyRPG Phone</title>
-    <link rel="stylesheet" href="style.css?v=20260621-3" />
+    <link rel="stylesheet" href="style.css?v=20260621-4" />
 </head>
 <body>
     <main class="phone-shell">
@@ -17,6 +17,7 @@
                 <header class="statusbar">
                     <span id="clock">21:37</span>
                     <span class="status-icons" id="statusIcons">LTE 82%</span>
+                    <button class="close-phone" id="closeButton" aria-label="Schowaj telefon">X</button>
                 </header>
 
                 <section class="view active" data-view="home">
@@ -65,7 +66,7 @@
                         <span>SELFIE</span>
                     </div>
                     <button class="shutter" id="selfieButton" aria-label="Zrob selfie"></button>
-                    <p class="hint" id="selfieStatus">Ustaw kadr w grze i kliknij spust migawki.</p>
+                    <p class="hint" id="selfieStatus">Aparat ustawia kamere na selfie. Kliknij spust, telefon schowa UI na moment i zapisze zdjecie.</p>
                 </section>
 
                 <section class="view" data-view="settings">
@@ -107,6 +108,6 @@
             </nav>
         </section>
     </main>
-    <script src="app.js?v=20260621-3"></script>
+    <script src="app.js?v=20260621-4"></script>
 </body>
 </html>
