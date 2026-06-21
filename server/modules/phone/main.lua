@@ -192,6 +192,25 @@ local function sendSms(player, number, body, callback)
     return true
 end
 
+local function placeCall(player, number, callback)
+    number = cleanNumber(number)
+    if #number < 3 then if callback then callback(false, "Podaj poprawny numer.") end return false end
+
+    Phone.ensureNumber(player, function(ok, senderNumber)
+        if not ok then if callback then callback(false, senderNumber) end return end
+        if tostring(senderNumber) == tostring(number) then if callback then callback(false, "Nie mozesz zadzwonic do siebie.") end return end
+
+        local target = Phone.findOnlineByNumber(number)
+        if not target then if callback then callback(false, "Numer jest niedostepny albo telefon jest poza zasiegiem.") end return end
+
+        local incoming = "Polaczenie przychodzace od " .. tostring(senderNumber) .. "."
+        notify(target, incoming, 180, 220, 170)
+        triggerClientEvent(target, "HeavyRPG:Phone:callStatus", resourceRoot, { message = incoming })
+        if callback then callback(true, "Dzwonisz do " .. tostring(number) .. ".") end
+    end)
+    return true
+end
+
 local function handleAddContact(player, _, name, number)
     local ok, message = addContact(player, name, number)
     notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
@@ -231,6 +250,17 @@ addEventHandler("HeavyRPG:Phone:sendSms", resourceRoot, function(payload)
     sendSms(player, payload.number, payload.body, function(ok, message)
         notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
         if ok then sendData(player) end
+    end)
+end)
+
+addEvent("HeavyRPG:Phone:call", true)
+addEventHandler("HeavyRPG:Phone:call", resourceRoot, function(payload)
+    local player = client
+    payload = type(payload) == "string" and fromJSON(payload) or payload
+    payload = type(payload) == "table" and payload or {}
+    placeCall(player, payload.number, function(ok, message)
+        notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+        triggerClientEvent(player, "HeavyRPG:Phone:callStatus", resourceRoot, { message = message })
     end)
 end)
 
