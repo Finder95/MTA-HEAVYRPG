@@ -37,6 +37,7 @@
     <script src="client/modules/character/main.lua" type="client" />
     <script src="client/modules/hud/main.lua" type="client" />
     <script src="client/modules/inventory/main.lua" type="client" />
+    <script src="client/modules/inventory/note_placement.lua" type="client" />
     <script src="client/modules/phone/main.lua" type="client" />
     <script src="client/core/boot.lua" type="client" />
 
