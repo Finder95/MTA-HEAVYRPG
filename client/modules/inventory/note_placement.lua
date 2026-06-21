@@ -42,35 +42,27 @@ end
 local function matrixPoint(matrix, lx, ly, lz)
     return lx * matrix[1][1] + ly * matrix[2][1] + lz * matrix[3][1] + matrix[4][1],
         lx * matrix[1][2] + ly * matrix[2][2] + lz * matrix[3][2] + matrix[4][2],
-        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
+        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3]
+end
+
+local function vehicleWindshieldOffset(vehicle)
+    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
+    if not minX then return 0, 1.25, 0.55 end
+
+    local length = math.max(0.1, maxY - minY)
+    local height = math.max(0.1, maxZ - minZ)
+    local y = maxY - math.max(0.35, length * 0.20)
+    local z = minZ + height * 0.64
+    return 0, y, z
 end
 
 local function vehicleNotePoint(vehicle)
     local vx, vy, vz = getElementPosition(vehicle)
-    local minX, minY, minZ, maxX, maxY, maxZ = getElementBoundingBox(vehicle)
     local matrix = getElementMatrix(vehicle)
-    if not minX or not matrix then return vx, vy, vz + 1.05 end
+    if not matrix then return vx, vy, vz + 1.05 end
 
-    local px, py, pz = getElementPosition(localPlayer)
-    local z = minZ + (maxZ - minZ) * 0.68
-    local candidates = {
-        { 0, maxY * 0.56, z },
-        { minX * 0.28, maxY * 0.56, z },
-        { maxX * 0.28, maxY * 0.56, z },
-        { 0, minY * 0.56, z },
-        { minX * 0.28, minY * 0.56, z },
-        { maxX * 0.28, minY * 0.56, z }
-    }
-
-    local best = nil
-    for _, candidate in ipairs(candidates) do
-        local wx, wy, wz = matrixPoint(matrix, candidate[1], candidate[2], candidate[3])
-        local distance = getDistanceBetweenPoints3D(px, py, pz, wx, wy, wz)
-        if not best or distance < best.distance then best = { x = wx, y = wy, z = wz, distance = distance } end
-    end
-
-    if best then return best.x, best.y, best.z end
-    return vx, vy, vz + 1.05
+    local x, y, z = vehicleWindshieldOffset(vehicle)
+    return matrixPoint(matrix, x, y, z)
 end
 
 local function nearestVehicle(maxDistance)
