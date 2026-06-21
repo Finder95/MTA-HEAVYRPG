@@ -42,7 +42,7 @@ end
 local function matrixPoint(matrix, lx, ly, lz)
     return lx * matrix[1][1] + ly * matrix[2][1] + lz * matrix[3][1] + matrix[4][1],
         lx * matrix[1][2] + ly * matrix[2][2] + lz * matrix[3][2] + matrix[4][2],
-        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3]
+        lx * matrix[1][3] + ly * matrix[2][3] + lz * matrix[3][3] + matrix[4][3]
 end
 
 local function vehicleWindshieldOffset(vehicle)
