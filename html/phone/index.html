@@ -5,32 +5,32 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HeavyRPG Phone</title>
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=20260621-2" />
 </head>
 <body>
     <main class="phone-shell">
-        <button class="side side-left" id="volumeButton" aria-label="Volume"></button>
-        <button class="side side-right" id="powerButton" aria-label="Power"></button>
+        <button class="side side-left" id="volumeButton" aria-label="Odswiez"></button>
+        <button class="side side-right" id="powerButton" aria-label="Zablokuj"></button>
         <section class="device">
             <div class="speaker"></div>
-            <div class="screen">
+            <div class="screen" id="screen">
                 <header class="statusbar">
                     <span id="clock">21:37</span>
-                    <span id="statusNumber">555000000</span>
-                    <span>LTE 82%</span>
+                    <span class="status-icons">LTE 82%</span>
                 </header>
 
                 <section class="view active" data-view="home">
                     <div class="home-head">
                         <span>HeavyPhone</span>
-                        <strong id="homeNumber">555000000</strong>
+                        <strong id="timezone">CEST</strong>
                     </div>
                     <div class="app-grid">
-                        <button class="app" data-open="dialer"><span>☎</span>Telefon</button>
-                        <button class="app" data-open="sms"><span>✉</span>SMS</button>
-                        <button class="app" data-open="contacts"><span>◎</span>Kontakty</button>
-                        <button class="app" data-open="browser"><span>⌕</span>Przegladarka</button>
+                        <button class="app app-phone" data-open="dialer"><span>TEL</span><small>Telefon</small></button>
+                        <button class="app app-sms" data-open="sms"><span>SMS</span><small>SMS</small></button>
+                        <button class="app app-contacts" data-open="contacts"><span>OS</span><small>Kontakty</small></button>
+                        <button class="app app-browser" data-open="browser"><span>WWW</span><small>Przegladarka</small></button>
                     </div>
+                    <div class="theme-row" id="themeRow" aria-label="Motywy telefonu"></div>
                 </section>
 
                 <section class="view" data-view="dialer">
@@ -38,7 +38,7 @@
                     <input id="callNumber" class="input" placeholder="Numer telefonu" inputmode="numeric" />
                     <div class="dial-pad" id="dialPad"></div>
                     <button class="primary" id="callButton">Zadzwon</button>
-                    <p class="hint" id="callHint">Polaczenia sa przygotowane wizualnie. Logika rozmow glosowych bedzie osobnym etapem.</p>
+                    <p class="hint" id="callHint">Wybierz numer albo kontakt. Pelna logika rozmow glosowych bedzie osobnym etapem.</p>
                 </section>
 
                 <section class="view" data-view="sms">
@@ -50,7 +50,7 @@
                 </section>
 
                 <section class="view" data-view="contacts">
-                    <h1>Kontakty</h1>
+                    <h1>Ksiazka telefoniczna</h1>
                     <div class="contacts" id="contacts"></div>
                     <input id="contactName" class="input" placeholder="Nazwa kontaktu" />
                     <input id="contactNumber" class="input" placeholder="Numer" inputmode="numeric" />
@@ -62,7 +62,7 @@
                     <div class="browserbar">heavy://city</div>
                     <article class="browser-page">
                         <strong>Los Santos Network</strong>
-                        <p>Wersja offline. Tu wejda ogloszenia, darknet, giełda, bank i strony frakcyjne.</p>
+                        <p>Wersja offline. Tu wejda ogloszenia, darknet, gielda, bank i strony frakcyjne.</p>
                         <button class="ghost" data-open="home">Wroc na pulpit</button>
                     </article>
                 </section>
@@ -76,12 +76,12 @@
                 </section>
             </div>
             <nav class="nav">
-                <button id="backButton" aria-label="Back">‹</button>
-                <button id="homeButton" aria-label="Home">○</button>
-                <button id="recentButton" aria-label="Recent">☰</button>
+                <button id="backButton" aria-label="Back">&lt;</button>
+                <button id="homeButton" aria-label="Home">o</button>
+                <button id="recentButton" aria-label="Recent">=</button>
             </nav>
         </section>
     </main>
-    <script src="app.js?v=20260621-1"></script>
+    <script src="app.js?v=20260621-2"></script>
 </body>
 </html>
