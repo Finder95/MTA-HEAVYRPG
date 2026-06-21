@@ -137,8 +137,7 @@ local function togglePanelCommand()
         closePanel()
         return
     end
-    triggerServerEvent("HeavyRPG:Admin:request", resourceRoot)
-    triggerServerEvent("HeavyRPG:Admin:advancedRequest", resourceRoot)
+    triggerServerEvent("HeavyRPG:Admin:openRequest", resourceRoot)
 end
 
 local function closeKey()
