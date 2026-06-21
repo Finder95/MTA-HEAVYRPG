@@ -16,6 +16,7 @@ HRP.ClientPhone = HRP.ClientPhone or {
     lastCursorX = 0,
     lastCursorY = 0,
     selfieSource = nil,
+    previewSource = nil,
     cameraMode = false,
     cameraKind = "photo",
     cameraZoom = 1,
@@ -59,9 +60,44 @@ local function toBrowserPoint(absX, absY)
     return absX - Phone.x, absY - Phone.y
 end
 
+local function ensurePreviewSource()
+    if Phone.previewSource and isElement(Phone.previewSource) then return true end
+    Phone.previewSource = dxCreateScreenSource(Phone.sx or 1, Phone.sy or 1)
+    return Phone.previewSource ~= false and Phone.previewSource ~= nil
+end
+
+local function previewRect()
+    local deviceW, deviceH = Phone.w * 0.94, Phone.h * 0.98
+    local deviceX, deviceY = Phone.x + (Phone.w - deviceW) / 2, Phone.y + (Phone.h - deviceH) / 2
+    local screenX = deviceX + 13
+    local screenY = deviceY + 34
+    local screenW = deviceW - 26
+    local viewX = screenX + 18
+    local viewY = screenY + 34 + 18
+    local titleH = 35
+    local modeH = 44
+    return viewX, viewY + titleH + modeH, screenW - 36, 230
+end
+
+local function drawCameraPreview()
+    if not Phone.visible or Phone.renderPaused or not Phone.cameraMode then return end
+    if not ensurePreviewSource() then return end
+    dxUpdateScreenSource(Phone.previewSource, true)
+    local x, y, w, h = previewRect()
+    dxDrawImage(x, y, w, h, Phone.previewSource, 0, 0, 0, tocolor(255, 255, 255, 245), true)
+    dxDrawRectangle(x, y, w, 1, tocolor(245, 245, 235, 70), true)
+    dxDrawRectangle(x, y + h - 1, w, 1, tocolor(245, 245, 235, 70), true)
+    dxDrawRectangle(x, y, 1, h, tocolor(245, 245, 235, 70), true)
+    dxDrawRectangle(x + w - 1, y, 1, h, tocolor(245, 245, 235, 70), true)
+    dxDrawLine(x + w / 2, y + 12, x + w / 2, y + h - 12, tocolor(245, 245, 235, 45), 1, true)
+    dxDrawLine(x + 12, y + h / 2, x + w - 12, y + h / 2, tocolor(245, 245, 235, 45), 1, true)
+end
+
 local function renderPhone()
     if Phone.visible and not Phone.renderPaused and Phone.browser then
+        if Phone.cameraMode then drawCameraPreview() end
         dxDrawImage(Phone.x, Phone.y, Phone.w, Phone.h, Phone.browser, 0, 0, 0, tocolor(255, 255, 255, 255), true)
+        if Phone.cameraMode then drawCameraPreview() end
     end
 end
 
@@ -296,4 +332,5 @@ end)
 addEventHandler("onClientResourceStop", resourceRoot, function()
     stopCamera()
     if Phone.selfieSource and isElement(Phone.selfieSource) then destroyElement(Phone.selfieSource) end
+    if Phone.previewSource and isElement(Phone.previewSource) then destroyElement(Phone.previewSource) end
 end)
