@@ -56,12 +56,14 @@ local function generateNumber(characterId)
     return "555" .. tostring(100000 + ((tonumber(characterId) or 0) % 899999))
 end
 
-local function sendInventoryPanel(player, title, lines)
-    triggerClientEvent(player, "HeavyRPG:Inventory:action", resourceRoot, {
-        title = title,
-        lines = lines or {},
-        footer = "ESC - zamknij"
-    })
+local function cleanNumber(number)
+    return tostring(number or ""):gsub("%D", ""):sub(1, 12)
+end
+
+local function safeBody(body)
+    body = HRP.Utils.trim(tostring(body or ""))
+    if #body > 160 then body = body:sub(1, 160) end
+    return body
 end
 
 function Phone.ensureNumber(player, callback)
@@ -94,37 +96,51 @@ function Phone.findOnlineByNumber(number)
     return nil
 end
 
-function Phone.openPanel(player)
+local function buildPayload(player, callback)
     Phone.ensureNumber(player, function(ok, number)
-        if not ok then notify(player, number, 230, 90, 80) return end
+        if not ok then if callback then callback(false, number) end return end
         setElementData(player, "hrp:phone:number", number, false)
-        HRP.DB.query([[SELECT COUNT(*) AS count FROM phone_contacts WHERE owner_character_id = ?]], { getCharacterId(player) }, function(contactRows)
-            HRP.DB.query([[SELECT COUNT(*) AS count FROM phone_messages WHERE receiver_number = ? AND read_at IS NULL]], { number }, function(messageRows)
-                local contacts = tonumber(contactRows and contactRows[1] and contactRows[1].count) or 0
-                local unread = tonumber(messageRows and messageRows[1] and messageRows[1].count) or 0
-                sendInventoryPanel(player, "TELEFON", {
-                    "Numer: " .. tostring(number),
-                    "Status: aktywny",
-                    "Kontakty: " .. tostring(contacts),
-                    "Nieprzeczytane SMS: " .. tostring(unread),
-                    "Komendy: /sms <numer> <tresc>, /kontakt <nazwa> <numer>, /kontakty"
-                })
+        local characterId = getCharacterId(player)
+        HRP.DB.query([[SELECT name, phone_number FROM phone_contacts WHERE owner_character_id = ? ORDER BY name ASC LIMIT 50]], { characterId }, function(contactRows)
+            HRP.DB.query([[SELECT sender_number, receiver_number, body, created_at, read_at FROM phone_messages WHERE receiver_number = ? OR sender_number = ? ORDER BY created_at DESC LIMIT 40]], { number, number }, function(messageRows)
+                local contacts, messages = {}, {}
+                for _, row in ipairs(contactRows or {}) do
+                    contacts[#contacts + 1] = { name = tostring(row.name or "Kontakt"), number = tostring(row.phone_number or "") }
+                end
+                for _, row in ipairs(messageRows or {}) do
+                    messages[#messages + 1] = {
+                        from = tostring(row.sender_number or ""),
+                        to = tostring(row.receiver_number or ""),
+                        body = tostring(row.body or ""),
+                        createdAt = tonumber(row.created_at) or 0,
+                        incoming = tostring(row.receiver_number or "") == tostring(number)
+                    }
+                end
+                if callback then callback(true, { number = number, status = "active", contacts = contacts, messages = messages }) end
             end)
         end)
+    end)
+end
+
+function Phone.openPanel(player)
+    buildPayload(player, function(ok, payload)
+        if not ok then notify(player, payload, 230, 90, 80) return end
+        triggerClientEvent(player, "HeavyRPG:Inventory:close", resourceRoot)
+        triggerClientEvent(player, "HeavyRPG:Phone:open", resourceRoot, payload)
     end)
     return true, "Otworzono telefon."
 end
 
 function Phone.openContacts(player)
-    local characterId = getCharacterId(player)
-    if not characterId then return false, "Brak aktywnej postaci." end
-    HRP.DB.query([[SELECT name, phone_number FROM phone_contacts WHERE owner_character_id = ? ORDER BY name ASC LIMIT 8]], { characterId }, function(rows)
-        local lines = {}
-        for _, row in ipairs(rows or {}) do lines[#lines + 1] = tostring(row.name) .. " - " .. tostring(row.phone_number) end
-        if #lines == 0 then lines[1] = "Brak kontaktow. Dodaj: /kontakt <nazwa> <numer>" end
-        sendInventoryPanel(player, "KONTAKTY", lines)
+    Phone.openPanel(player)
+    return true, "Otworzono telefon."
+end
+
+local function sendData(player)
+    buildPayload(player, function(ok, payload)
+        if ok then triggerClientEvent(player, "HeavyRPG:Phone:data", resourceRoot, payload)
+        else notify(player, payload, 230, 90, 80) end
     end)
-    return true, "Otworzono kontakty."
 end
 
 local function handlePhoneCommand(player)
@@ -132,16 +148,15 @@ local function handlePhoneCommand(player)
 end
 
 local function handleContactsCommand(player)
-    local ok, message = Phone.openContacts(player)
-    if not ok then notify(player, message, 230, 90, 80) end
+    Phone.openPanel(player)
 end
 
-local function handleAddContact(player, _, name, number)
+local function addContact(player, name, number)
     local characterId = getCharacterId(player)
-    if not characterId or not name or not number then notify(player, "Uzycie: /kontakt <nazwa> <numer>", 230, 90, 80) return end
-    name = tostring(name):sub(1, 32)
-    number = tostring(number):gsub("%D", ""):sub(1, 12)
-    if #number < 3 then notify(player, "Podaj poprawny numer.", 230, 90, 80) return end
+    name = tostring(name or ""):sub(1, 32)
+    number = cleanNumber(number)
+    if not characterId then return false, "Brak aktywnej postaci." end
+    if #name < 1 or #number < 3 then return false, "Podaj nazwe i poprawny numer." end
     local timestamp = now()
     local ok = HRP.DB.exec([[INSERT INTO phone_contacts (owner_character_id, name, phone_number, created_at, updated_at) VALUES(?, ?, ?, ?, ?)]], {
         characterId,
@@ -150,17 +165,17 @@ local function handleAddContact(player, _, name, number)
         timestamp,
         timestamp
     })
-    notify(player, ok and "Dodano kontakt: " .. name .. "." or "Nie udalo sie dodac kontaktu.", ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    return ok == true, ok and "Dodano kontakt: " .. name .. "." or "Nie udalo sie dodac kontaktu."
 end
 
-local function handleSmsCommand(player, _, number, ...)
-    local body = HRP.Utils.trim(table.concat({ ... }, " "))
-    number = tostring(number or ""):gsub("%D", "")
-    if #number < 3 or #body < 1 then notify(player, "Uzycie: /sms <numer> <tresc>", 230, 90, 80) return end
-    if #body > 160 then body = body:sub(1, 160) end
+local function sendSms(player, number, body)
+    number = cleanNumber(number)
+    body = safeBody(body)
+    if #number < 3 or #body < 1 then return false, "Podaj numer i tresc SMS." end
 
+    local resultOk, resultMessage = false, "Nie udalo sie wyslac SMS."
     Phone.ensureNumber(player, function(ok, senderNumber)
-        if not ok then notify(player, senderNumber, 230, 90, 80) return end
+        if not ok then resultOk, resultMessage = false, senderNumber return end
         local timestamp = now()
         local saved = HRP.DB.exec([[INSERT INTO phone_messages (sender_character_id, sender_number, receiver_number, body, created_at) VALUES(?, ?, ?, ?, ?)]], {
             getCharacterId(player),
@@ -169,11 +184,25 @@ local function handleSmsCommand(player, _, number, ...)
             body,
             timestamp
         })
-        if not saved then notify(player, "Nie udalo sie wyslac SMS.", 230, 90, 80) return end
-        notify(player, "Wyslano SMS do " .. number .. ".", 180, 220, 170)
-        local target = Phone.findOnlineByNumber(number)
-        if target then notify(target, "SMS od " .. senderNumber .. ": " .. body, 180, 220, 170) end
+        if saved then
+            resultOk, resultMessage = true, "Wyslano SMS do " .. number .. "."
+            local target = Phone.findOnlineByNumber(number)
+            if target then notify(target, "SMS od " .. senderNumber .. ": " .. body, 180, 220, 170) sendData(target) end
+        end
     end)
+    return resultOk, resultMessage
+end
+
+local function handleAddContact(player, _, name, number)
+    local ok, message = addContact(player, name, number)
+    notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    if ok then sendData(player) end
+end
+
+local function handleSmsCommand(player, _, number, ...)
+    local ok, message = sendSms(player, number, table.concat({ ... }, " "))
+    notify(player, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    if ok then sendData(player) end
 end
 
 local function attachPlayer(player)
@@ -181,6 +210,27 @@ local function attachPlayer(player)
         if ok then setElementData(player, "hrp:phone:number", number, false) end
     end)
 end
+
+addEvent("HeavyRPG:Phone:request", true)
+addEventHandler("HeavyRPG:Phone:request", resourceRoot, function() if isElement(client) then sendData(client) end end)
+
+addEvent("HeavyRPG:Phone:addContact", true)
+addEventHandler("HeavyRPG:Phone:addContact", resourceRoot, function(payload)
+    payload = type(payload) == "string" and fromJSON(payload) or payload
+    payload = type(payload) == "table" and payload or {}
+    local ok, message = addContact(client, payload.name, payload.number)
+    notify(client, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    if ok then sendData(client) end
+end)
+
+addEvent("HeavyRPG:Phone:sendSms", true)
+addEventHandler("HeavyRPG:Phone:sendSms", resourceRoot, function(payload)
+    payload = type(payload) == "string" and fromJSON(payload) or payload
+    payload = type(payload) == "table" and payload or {}
+    local ok, message = sendSms(client, payload.number, payload.body)
+    notify(client, message, ok and 180 or 230, ok and 220 or 90, ok and 170 or 80)
+    if ok then sendData(client) end
+end)
 
 local module = {}
 function module.onStart()
@@ -190,7 +240,7 @@ function module.onStart()
     addCommandHandler("kontakty", handleContactsCommand)
     addCommandHandler("kontakt", handleAddContact)
     addCommandHandler("sms", handleSmsCommand)
-    HRP.Logger.info("phone", "Modul telefonow SQLite gotowy.")
+    HRP.Logger.info("phone", "Modul telefonow CEF/SQLite gotowy.")
 end
 
 HRP.Modules.register("phone", module)
