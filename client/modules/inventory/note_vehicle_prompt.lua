@@ -52,8 +52,12 @@ local function isVehicleNote(payload)
     return type(payload) == "table" and tostring(payload.placeType or "") == "vehicle_windshield"
 end
 
+local function localPlayerInVehicle()
+    return isElement(localPlayer) and getPedOccupiedVehicle(localPlayer) ~= false and getPedOccupiedVehicle(localPlayer) ~= nil
+end
+
 local function drawVehicleNotePrompt()
-    if not vehicleNote or Inv.visible then return end
+    if not vehicleNote or Inv.visible or localPlayerInVehicle() then return end
 
     local s, sx, sy = scale()
     local prompt = "E - sprawdz kartke za wycieraczka"
@@ -73,7 +77,7 @@ local function drawVehicleNotePrompt()
 end
 
 local function handleVehicleNoteKey(button, press)
-    if not press or not vehicleNote or Inv.visible then return end
+    if not press or not vehicleNote or Inv.visible or localPlayerInVehicle() then return end
     if tostring(button or ""):lower() ~= "e" then return end
     triggerServerEvent("HeavyRPG:Inventory:readPlacedNote", resourceRoot, vehicleNote.id)
     cancelEvent()
