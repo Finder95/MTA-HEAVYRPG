@@ -116,6 +116,15 @@ local function notePosition(note)
     return note.x, note.y, note.z
 end
 
+local function worldToElementLocal(element, wx, wy, wz)
+    local matrix = isElement(element) and getElementMatrix(element)
+    if not matrix then return nil end
+    local dx, dy, dz = wx - matrix[4][1], wy - matrix[4][2], wz - matrix[4][3]
+    return dx * matrix[1][1] + dy * matrix[1][2] + dz * matrix[1][3],
+        dx * matrix[2][1] + dy * matrix[2][2] + dz * matrix[2][3],
+        dx * matrix[3][1] + dy * matrix[3][2] + dz * matrix[3][3]
+end
+
 local function destroyPlacedNote(noteId)
     local note = placedNotes[tostring(noteId)]
     if not note then return end
@@ -131,7 +140,9 @@ local function createPlacedNote(note)
         setElementInterior(note.marker, note.interior or 0)
         setElementDimension(note.marker, note.dimension or 0)
         setElementData(note.marker, "hrp:placed_note:id", note.id, false)
-        if note.vehicle and isElement(note.vehicle) then attachElements(note.marker, note.vehicle, 0, 1.9, 0.25) end
+        if note.vehicle and isElement(note.vehicle) then
+            attachElements(note.marker, note.vehicle, note.attachX or 0, note.attachY or 1.9, note.attachZ or 0.25, 0, 0, 0)
+        end
         addEventHandler("onMarkerHit", note.marker, function(hitElement, matchingDimension)
             if matchingDimension and isElement(hitElement) and getElementType(hitElement) == "player" then
                 local x, y, z = notePosition(note)
@@ -230,16 +241,25 @@ local function placeNote(player, uid, placeType, x, y, z, target)
     if not x or not y or not z or getDistanceBetweenPoints3D(px, py, pz, x, y, z) > 5.0 then return false, "Jestes za daleko od miejsca przyklejenia." end
 
     local timestamp = now()
+    local noteZ = z + 0.05
+    local attachX, attachY, attachZ
+    if placeType == "vehicle" then
+        attachX, attachY, attachZ = worldToElementLocal(target, x, y, noteZ)
+    end
+
     local note = {
         id = makePlacedNoteId(player),
         placeType = placeType == "vehicle" and "vehicle_windshield" or "world",
         metadata = item.metadata or {},
         x = x,
         y = y,
-        z = z + 0.05,
+        z = noteZ,
         interior = getElementInterior(player),
         dimension = getElementDimension(player),
         vehicle = placeType == "vehicle" and target or nil,
+        attachX = attachX,
+        attachY = attachY,
+        attachZ = attachZ,
         placedByCharacterId = getCharacterId(player),
         placedByAccountId = getAccountId(player),
         createdAt = timestamp,
