@@ -6,6 +6,7 @@ HRP.ClientShops = HRP.ClientShops or {
     prompt = nil,
     offers = {},
     categories = {},
+    bounds = { categories = {}, offers = {}, buttons = {} },
     selected = 1,
     category = "all",
     quantity = 1,
@@ -14,10 +15,13 @@ HRP.ClientShops = HRP.ClientShops or {
     clerkName = "Sklepikarka",
     status = nil,
     statusType = "muted",
-    lastBuy = 0
+    lastBuy = 0,
+    wasFrozen = nil,
+    cursorWasShowing = nil
 }
 
 local Shop = HRP.ClientShops
+local handleClick
 
 local colors = {
     bg = { 17, 18, 17, 236 },
@@ -32,6 +36,13 @@ local colors = {
     green = { 119, 191, 124, 255 },
     red = { 202, 82, 70, 255 },
     veil = { 6, 7, 8, 112 }
+}
+
+local blockedControls = {
+    "fire", "aim_weapon", "next_weapon", "previous_weapon", "forwards", "backwards",
+    "left", "right", "jump", "sprint", "walk", "crouch", "enter_exit",
+    "vehicle_fire", "vehicle_secondary_fire", "vehicle_left", "vehicle_right",
+    "accelerate", "brake_reverse", "handbrake", "horn", "sub_mission"
 }
 
 local function rgba(name, alpha)
@@ -68,6 +79,58 @@ local function box(x, y, w, h, fill, border)
     dxDrawRectangle(x, y + h - 1, w, 1, border, true)
     dxDrawRectangle(x, y, 1, h, border, true)
     dxDrawRectangle(x + w - 1, y, 1, h, border, true)
+end
+
+local function resetBounds()
+    Shop.bounds = { categories = {}, offers = {}, buttons = {} }
+end
+
+local function addBound(group, action, x, y, w, h, data)
+    Shop.bounds[group] = Shop.bounds[group] or {}
+    data = type(data) == "table" and data or {}
+    data.action = action
+    data.x, data.y, data.w, data.h = x, y, w, h
+    Shop.bounds[group][#Shop.bounds[group] + 1] = data
+end
+
+local function inside(bound, x, y)
+    return bound and x >= bound.x and x <= bound.x + bound.w and y >= bound.y and y <= bound.y + bound.h
+end
+
+local function drawButton(x, y, w, h, label, action, enabled, mode)
+    enabled = enabled ~= false
+    local fill = rgba(mode == "primary" and "active" or "row", enabled and 210 or 105)
+    local border = rgba(mode == "primary" and "accent" or "line", enabled and 205 or 115)
+    local labelColor = enabled and rgba(mode == "primary" and "text" or "text", 242) or rgba("muted", 150)
+
+    box(x, y, w, h, fill, border)
+    text(label, x, y + 1, x + w, y + h, labelColor, 0.72, "default-bold", "center", "center", true)
+    if action then addBound("buttons", action, x, y, w, h, { enabled = enabled }) end
+end
+
+local function setMenuInputState(enabled)
+    if enabled then
+        Shop.cursorWasShowing = isCursorShowing and isCursorShowing() or false
+        Shop.wasFrozen = isElementFrozen(localPlayer)
+        for _, control in ipairs(blockedControls) do toggleControl(control, false) end
+        setElementFrozen(localPlayer, true)
+        showCursor(true)
+        return
+    end
+
+    for _, control in ipairs(blockedControls) do toggleControl(control, true) end
+    if Shop.wasFrozen ~= nil then
+        setElementFrozen(localPlayer, Shop.wasFrozen == true)
+    else
+        setElementFrozen(localPlayer, false)
+    end
+    if Shop.cursorWasShowing ~= nil then
+        showCursor(Shop.cursorWasShowing == true)
+    else
+        showCursor(false)
+    end
+    Shop.wasFrozen = nil
+    Shop.cursorWasShowing = nil
 end
 
 local function categoryLabel(id)
@@ -116,12 +179,15 @@ local function closeShop()
     if not Shop.visible then return end
     Shop.visible = false
     Shop.status = nil
-    showCursor(false)
+    resetBounds()
+    setMenuInputState(false)
     removeEventHandler("onClientRender", root, Shop.render)
+    removeEventHandler("onClientClick", root, handleClick)
 end
 
 local function openShop(payload)
     payload = type(payload) == "table" and payload or {}
+    local wasVisible = Shop.visible
     Shop.visible = true
     Shop.prompt = nil
     Shop.offers = type(payload.offers) == "table" and payload.offers or {}
@@ -132,11 +198,14 @@ local function openShop(payload)
     Shop.selected = 1
     Shop.category = "all"
     Shop.quantity = 1
-    Shop.status = "Wybierz towar, ustaw ilosc i zatwierdz zakup."
+    Shop.status = "Wybierz towar i kliknij Kup."
     Shop.statusType = "muted"
-    showCursor(false)
+    resetBounds()
+    if not wasVisible then setMenuInputState(true) else showCursor(true) end
     removeEventHandler("onClientRender", root, Shop.render)
+    removeEventHandler("onClientClick", root, handleClick)
     addEventHandler("onClientRender", root, Shop.render)
+    addEventHandler("onClientClick", root, handleClick, true, "high+20")
 end
 
 local function setStatus(message, kind)
@@ -172,11 +241,18 @@ end
 local function buySelected()
     local offer = selectedOffer()
     if not offer then return end
+    local qty = clamp(Shop.quantity, 1, tonumber(offer.maxQuantity) or 1)
+    local total = qty * (tonumber(offer.price) or 0)
+    if (tonumber(Shop.cash) or 0) < total then
+        setStatus("Nie masz wystarczajacej gotowki przy sobie.", "error")
+        return
+    end
+
     local now = getTickCount()
     if now - Shop.lastBuy < 650 then return end
     Shop.lastBuy = now
     setStatus("Przekazuje zamowienie do sklepikarki...", "muted")
-    triggerServerEvent("HeavyRPG:Shops:buy", resourceRoot, offer.id, Shop.quantity)
+    triggerServerEvent("HeavyRPG:Shops:buy", resourceRoot, offer.id, qty)
 end
 
 local function drawPrompt()
@@ -210,6 +286,7 @@ local function drawCategories(s, x, y, w)
         dxDrawRectangle(cx, y, cw, 30 * s, active and rgba("active", 230) or rgba("row", 145), true)
         dxDrawRectangle(cx, y + 28 * s, cw, 2 * s, active and rgba("accent", 245) or rgba("line", 135), true)
         text(label, cx, y + 8 * s, cx + cw, y + 30 * s, active and rgba("text", 245) or rgba("muted", 225), 0.64 * s, "default-bold", "center", "top", true)
+        addBound("categories", "category", cx, y, cw, 30 * s, { id = id })
         cx = cx + cw + 8 * s
     end
 end
@@ -239,6 +316,7 @@ local function drawOfferList(s, x, y, w, h, offers)
         dxDrawRectangle(x + 1, yy, w - 2, rowH - 2, active and rgba("active", 228) or (row % 2 == 0 and rgba("rowAlt", 150) or rgba("row", 158)), true)
         text(tostring(offer.label or offer.itemId), x + 14 * s, yy + 9 * s, x + w - 126 * s, yy + rowH, rgba("text", 238), 0.72 * s, "default-bold", "left", "top", true)
         text(money(offer.price), x + w - 112 * s, yy + 9 * s, x + w - 18 * s, yy + rowH, rgba("accent", 235), 0.72 * s, "default-bold", "right")
+        addBound("offers", "offer", x + 1, yy, w - 2, rowH - 2, { index = index })
     end
 end
 
@@ -246,6 +324,7 @@ local function drawDetails(s, x, y, w, h, offer)
     box(x, y, w, h, rgba("panel", 220), rgba("line", 150))
     if not offer then
         text("Wybierz towar", x, y + 40 * s, x + w, y + 90 * s, rgba("muted", 230), 0.88 * s, "default-bold", "center", "center")
+        drawButton(x + 18 * s, y + h - 46 * s, w - 36 * s, 34 * s, "Zamknij", "close", true)
         return
     end
 
@@ -255,22 +334,33 @@ local function drawDetails(s, x, y, w, h, offer)
 
     text(tostring(offer.label or offer.itemId), x + 18 * s, y + 18 * s, x + w - 18 * s, y + 48 * s, rgba("text", 245), 0.92 * s, "default-bold", "left", "top", true)
     text(categoryLabel(offer.category), x + 18 * s, y + 48 * s, x + w - 18 * s, y + 70 * s, rgba("accent", 235), 0.66 * s, "default-bold")
-    text(tostring(offer.description or "Brak opisu."), x + 18 * s, y + 84 * s, x + w - 18 * s, y + 164 * s, rgba("muted", 228), 0.68 * s, "default", "left", "top", true, true)
+    text(tostring(offer.description or "Brak opisu."), x + 18 * s, y + 82 * s, x + w - 18 * s, y + 148 * s, rgba("muted", 228), 0.68 * s, "default", "left", "top", true, true)
 
-    local boxY = y + 178 * s
-    dxDrawRectangle(x + 18 * s, boxY, w - 36 * s, 88 * s, rgba("row", 165), true)
-    text("Ilosc", x + 34 * s, boxY + 12 * s, x + w - 34 * s, boxY + 34 * s, rgba("muted", 230), 0.66 * s, "default-bold")
-    text("<  " .. tostring(qty) .. "  >", x + 34 * s, boxY + 36 * s, x + w - 34 * s, boxY + 66 * s, rgba("text", 245), 1.00 * s, "default-bold", "center")
+    local boxY = y + 160 * s
+    dxDrawRectangle(x + 18 * s, boxY, w - 36 * s, 82 * s, rgba("row", 165), true)
+    text("Ilosc", x + 34 * s, boxY + 10 * s, x + w - 34 * s, boxY + 30 * s, rgba("muted", 230), 0.66 * s, "default-bold")
 
-    local costY = boxY + 106 * s
+    local qtyY = boxY + 38 * s
+    local btn = 30 * s
+    local minusX = x + 34 * s
+    local plusX = x + w - 34 * s - btn
+    drawButton(minusX, qtyY, btn, btn, "-", "qtyMinus", qty > 1)
+    drawButton(plusX, qtyY, btn, btn, "+", "qtyPlus", qty < (tonumber(offer.maxQuantity) or 1))
+    text(tostring(qty), minusX + btn + 8 * s, qtyY + 1, plusX - 8 * s, qtyY + btn, rgba("text", 245), 0.96 * s, "default-bold", "center", "center", true)
+
+    local costY = boxY + 100 * s
     text("Cena laczna", x + 18 * s, costY, x + 145 * s, costY + 24 * s, rgba("muted", 230), 0.70 * s, "default-bold")
     text(money(total), x + 145 * s, costY, x + w - 18 * s, costY + 24 * s, canPay and rgba("green", 235) or rgba("red", 235), 0.84 * s, "default-bold", "right")
     text("Gotowka", x + 18 * s, costY + 28 * s, x + 145 * s, costY + 52 * s, rgba("muted", 230), 0.70 * s, "default-bold")
     text(money(Shop.cash), x + 145 * s, costY + 28 * s, x + w - 18 * s, costY + 52 * s, rgba("text", 235), 0.78 * s, "default-bold", "right")
 
     local statusColor = Shop.statusType == "error" and rgba("red", 235) or (Shop.statusType == "success" and rgba("green", 235) or rgba("muted", 225))
-    text(Shop.status or "", x + 18 * s, y + h - 86 * s, x + w - 18 * s, y + h - 40 * s, statusColor, 0.66 * s, "default-bold", "left", "top", true, true)
-    text("ENTER - kup    LEWO/PRAWO - ilosc    Q/E - kategoria    ESC - zamknij", x + 18 * s, y + h - 34 * s, x + w - 18 * s, y + h - 12 * s, rgba("muted", 220), 0.58 * s, "default-bold", "center", "top", true)
+    text(Shop.status or "", x + 18 * s, y + h - 94 * s, x + w - 18 * s, y + h - 56 * s, statusColor, 0.66 * s, "default-bold", "left", "top", true, true)
+
+    local buttonY = y + h - 46 * s
+    local buttonW = (w - 44 * s) / 2
+    drawButton(x + 18 * s, buttonY, buttonW, 34 * s, "Zamknij", "close", true)
+    drawButton(x + 26 * s + buttonW, buttonY, buttonW, 34 * s, "Kup", "buy", canPay, "primary")
 end
 
 function Shop.render()
@@ -283,6 +373,7 @@ function Shop.render()
     local x = (sx - w) / 2
     local y = (sy - h) / 2
     local offer, offers = selectedOffer()
+    resetBounds()
 
     dxDrawRectangle(0, 0, sx, sy, rgba("veil", 122), true)
     box(x, y, w, h, rgba("bg", 238), rgba("line", 160))
@@ -295,6 +386,49 @@ function Shop.render()
     drawCategories(s, x + 24 * s, y + 88 * s, w - 48 * s)
     drawOfferList(s, x + 24 * s, y + 132 * s, w * 0.56, h - 166 * s, offers)
     drawDetails(s, x + w * 0.62, y + 132 * s, w * 0.34, h - 166 * s, offer)
+end
+
+handleClick = function(button, state, absoluteX, absoluteY)
+    if not Shop.visible then return end
+    if button ~= "left" or state ~= "down" then cancelEvent() return end
+
+    local x, y = tonumber(absoluteX), tonumber(absoluteY)
+    if not x or not y then cancelEvent() return end
+
+    for _, bound in ipairs((Shop.bounds and Shop.bounds.buttons) or {}) do
+        if inside(bound, x, y) then
+            if bound.enabled == false then
+                if bound.action == "buy" then setStatus("Nie masz wystarczajacej gotowki przy sobie.", "error") end
+                cancelEvent()
+                return
+            end
+            if bound.action == "close" then closeShop() cancelEvent() return end
+            if bound.action == "buy" then buySelected() cancelEvent() return end
+            if bound.action == "qtyMinus" then changeQuantity(-1) cancelEvent() return end
+            if bound.action == "qtyPlus" then changeQuantity(1) cancelEvent() return end
+        end
+    end
+
+    for _, bound in ipairs((Shop.bounds and Shop.bounds.categories) or {}) do
+        if inside(bound, x, y) then
+            Shop.category = tostring(bound.id or "all")
+            Shop.selected = 1
+            Shop.quantity = 1
+            cancelEvent()
+            return
+        end
+    end
+
+    for _, bound in ipairs((Shop.bounds and Shop.bounds.offers) or {}) do
+        if inside(bound, x, y) then
+            Shop.selected = tonumber(bound.index) or Shop.selected
+            Shop.quantity = 1
+            cancelEvent()
+            return
+        end
+    end
+
+    cancelEvent()
 end
 
 local function handleKey(button, press)
@@ -347,5 +481,6 @@ end)
 addEventHandler("onClientResourceStop", resourceRoot, function()
     removeEventHandler("onClientRender", root, drawPrompt)
     removeEventHandler("onClientKey", root, handleKey)
+    removeEventHandler("onClientClick", root, handleClick)
     closeShop()
 end)
