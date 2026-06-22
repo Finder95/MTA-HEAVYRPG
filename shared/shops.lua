@@ -8,7 +8,7 @@ HRP.Config.shops = {
     enabled = true,
     key = "e",
     pickupModel = 1318,
-    pickupZOffset = 0.72,
+    pickupZOffset = 1.35,
     promptDistance = 2.0,
     interior = {
         id = "ls_24_7",
@@ -30,7 +30,7 @@ HRP.Config.shops = {
             interior = 0,
             dimension = 0,
             returnX = 1832.7,
-            returnY = -1844.0,
+            returnY = -1846.4,
             returnZ = 13.6,
             returnRotation = 180
         },
@@ -44,7 +44,7 @@ HRP.Config.shops = {
             interior = 0,
             dimension = 0,
             returnX = 1930.0,
-            returnY = -1777.8,
+            returnY = -1780.0,
             returnZ = 13.5,
             returnRotation = 180
         },
@@ -58,7 +58,7 @@ HRP.Config.shops = {
             interior = 0,
             dimension = 0,
             returnX = 1352.3,
-            returnY = -1759.8,
+            returnY = -1761.8,
             returnZ = 13.4,
             returnRotation = 180
         }
