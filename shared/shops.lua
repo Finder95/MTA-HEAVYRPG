@@ -10,13 +10,24 @@ HRP.Config.shops = {
     pickupModel = 1318,
     pickupZOffset = 1.35,
     promptDistance = 2.0,
+    radar = {
+        enabled = true,
+        -- MTA defaultowe blipy nie przyjmuja wlasnych PNG, dlatego mini-radar dostaje customowy overlay DX.
+        iconSize = 18,
+        worldRange = 260.0,
+        visibleDistance = 700.0,
+        nearPulseDistance = 30.0,
+        minimapX = 36,
+        minimapBottom = 42,
+        minimapSize = 190
+    },
     interior = {
         id = "ls_24_7",
         label = "Sklep 24/7",
         interior = 18,
         dimension = 0,
         spawn = { x = -30.9, y = -91.5, z = 1003.5, rotation = 0 },
-        exit = { x = -30.9, y = -91.5, z = 1003.5, radius = 1.8 },
+        exit = { x = -30.9, y = -91.5, z = 1002.4, radius = 1.8 },
         clerk = { x = -27.1, y = -91.9, z = 1003.5, rotation = 0, model = 201, radius = 2.3, name = "Sklepikarka" }
     },
     entrances = {
